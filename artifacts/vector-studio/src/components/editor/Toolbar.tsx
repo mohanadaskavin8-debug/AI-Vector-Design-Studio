@@ -1,13 +1,16 @@
 import React from 'react';
 import { useEditorStore, editorStore } from '../../store/editor';
-import { MousePointer2, Square, Circle, Type, Hexagon, Star, Minus } from 'lucide-react';
-import { ShapeType } from '../../lib/types';
+import { MousePointer2, Square, Circle, Type, Hexagon, Star, Minus, PenTool, Pencil, ScanSearch } from 'lucide-react';
+import { ToolType } from '../../lib/types';
 
-const tools: { id: ShapeType; icon: React.FC<any>; label: string; shortcut: string }[] = [
+const tools: { id: ToolType; icon: React.FC<any>; label: string; shortcut: string }[] = [
   { id: 'select', icon: MousePointer2, label: 'Select', shortcut: 'V' },
+  { id: 'node', icon: ScanSearch, label: 'Edit nodes', shortcut: 'A' },
+  { id: 'pen', icon: PenTool, label: 'Pen', shortcut: 'P' },
+  { id: 'pencil', icon: Pencil, label: 'Pencil', shortcut: 'N' },
   { id: 'rect', icon: Square, label: 'Rectangle', shortcut: 'R' },
   { id: 'ellipse', icon: Circle, label: 'Ellipse', shortcut: 'O' },
-  { id: 'polygon', icon: Hexagon, label: 'Polygon', shortcut: 'P' },
+  { id: 'polygon', icon: Hexagon, label: 'Polygon', shortcut: 'Shift+P' },
   { id: 'star', icon: Star, label: 'Star', shortcut: 'S' },
   { id: 'line', icon: Minus, label: 'Line', shortcut: 'L' },
   { id: 'text', icon: Type, label: 'Text', shortcut: 'T' },
@@ -19,7 +22,7 @@ export default function Toolbar() {
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (document.activeElement?.tagName === 'INPUT' || e.ctrlKey || e.metaKey) return;
-      const tool = tools.find(t => t.shortcut.toLowerCase() === e.key.toLowerCase());
+      const tool = tools.find(t => t.shortcut.toLowerCase() === (e.shiftKey ? 'shift+' + e.key.toLowerCase() : e.key.toLowerCase()));
       if (tool) {
         editorStore.set({ activeTool: tool.id });
       }
@@ -45,7 +48,6 @@ export default function Toolbar() {
             >
               <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
               
-              {/* Tooltip */}
               <div className="absolute left-full ml-4 top-1/2 -translate-y-1/2 px-2 py-1 bg-popover text-popover-foreground text-xs rounded border border-white/10 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap">
                 {tool.label} <span className="text-muted-foreground ml-1">{tool.shortcut}</span>
               </div>

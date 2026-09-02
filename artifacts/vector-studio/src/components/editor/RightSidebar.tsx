@@ -1,10 +1,96 @@
 import React, { useState } from 'react';
-import { useEditorStore, editorStore, updateObject, updateSelectedObjects, selectObject, setObjects } from '../../store/editor';
-import { Box, Wand2, Scissors, Eye, EyeOff, Lock, Unlock, Copy, Trash2, Group, Ungroup, Star } from 'lucide-react';
+import { useEditorStore, editorStore, updateObject, updateSelectedObjects, selectObject, setObjects, alignSelection, distributeSelection, combineSelection, breakApartSelection, offsetSelection } from '../../store/editor';
+import { Box, Wand2, Scissors, Eye, EyeOff, Lock, Unlock, Copy, Trash2, Group, Ungroup, Star, AlignLeft, AlignCenter, AlignRight, AlignStartVertical, AlignCenterVertical, AlignEndVertical, Rows3, Columns3 } from 'lucide-react';
 import { VectorObject } from '../../lib/types';
+import { performBooleanOp, isAxisAlignedRect } from '../../lib/booleanOps';
+import { pxToUnit, unitToPx } from '../../lib/units';
+
+function PrecisionPanel() {
+  const { unit, snapToGrid, snapToObjects, gridSize, guides } = useEditorStore();
+  return (
+    <div>
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Precision</h3>
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <label className="space-y-1">
+          <span className="text-muted-foreground">Units</span>
+          <select value={unit} onChange={event => editorStore.set({ unit: event.target.value as typeof unit })} className="w-full bg-black/40 border border-white/10 rounded-md px-2 py-1.5">
+            {['px', 'mm', 'cm', 'in', 'pt'].map(value => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </label>
+        <label className="space-y-1">
+          <span className="text-muted-foreground">Grid ({unit})</span>
+          <input type="number" min="0.1" value={Number(pxToUnit(gridSize, unit).toFixed(2))} onChange={event => editorStore.set({ gridSize: Math.max(0.1, unitToPx(Number(event.target.value), unit)) })} className="w-full bg-black/40 border border-white/10 rounded-md px-2 py-1.5 font-mono" />
+        </label>
+      </div>
+      <div className="mt-2 flex gap-2">
+        <button onClick={() => editorStore.set({ snapToGrid: !snapToGrid })} className={`flex-1 px-2 py-1.5 rounded-md border text-xs ${snapToGrid ? 'bg-primary/20 border-primary/30 text-primary' : 'bg-black/30 border-white/10 text-muted-foreground'}`}>Grid snap</button>
+        <button onClick={() => editorStore.set({ snapToObjects: !snapToObjects })} className={`flex-1 px-2 py-1.5 rounded-md border text-xs ${snapToObjects ? 'bg-primary/20 border-primary/30 text-primary' : 'bg-black/30 border-white/10 text-muted-foreground'}`}>Object snap</button>
+      </div>
+      {guides.length > 0 && <button onClick={() => editorStore.set({ guides: [] })} className="mt-2 text-xs text-muted-foreground hover:text-foreground">Clear {guides.length} guide{guides.length === 1 ? '' : 's'}</button>}
+    </div>
+  );
+}
+
+function SelectionTools() {
+  const { objects, selection } = useEditorStore();
+  const [notice, setNotice] = useState('');
+  const [offset, setOffset] = useState(8);
+  const runBoolean = (operation: 'union' | 'intersection' | 'difference' | 'exclusion') => {
+    const selected = objects.filter(object => selection.includes(object.id));
+    if (selected.length !== 2 || !selected.every(isAxisAlignedRect)) {
+      setNotice('Boolean operations support exactly two unrotated rectangles.');
+      return;
+    }
+    const result = performBooleanOp(operation, selected[0], selected[1]);
+    if (!result) {
+      setNotice(operation === 'intersection' ? 'The selected rectangles do not overlap.' : 'This operation produced no visible geometry.');
+      return;
+    }
+    setObjects([...objects.filter(object => !selection.includes(object.id)), result]);
+    editorStore.set({ selection: [result.id] });
+    setNotice(`${operation[0].toUpperCase()}${operation.slice(1)} created an editable path.`);
+  };
+  const run = (action: () => string | null) => setNotice(action() || 'Operation completed.');
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Align & distribute</h3>
+        <div className="grid grid-cols-4 gap-1">
+          {[
+            ['Left', AlignLeft, () => alignSelection('left')],
+            ['Center', AlignCenter, () => alignSelection('center')],
+            ['Right', AlignRight, () => alignSelection('right')],
+            ['Top', AlignStartVertical, () => alignSelection('top')],
+            ['Middle', AlignCenterVertical, () => alignSelection('middle')],
+            ['Bottom', AlignEndVertical, () => alignSelection('bottom')],
+            ['Distribute X', Columns3, () => distributeSelection('x')],
+            ['Distribute Y', Rows3, () => distributeSelection('y')],
+          ].map(([label, Icon, action]) => {
+            const ToolIcon = Icon as typeof AlignLeft;
+            return <button key={label as string} title={label as string} onClick={action as () => void} className="flex items-center justify-center p-2 bg-black/30 border border-white/10 rounded-md hover:border-primary/40 disabled:opacity-30" disabled={selection.length < ((label as string).startsWith('Distribute') ? 3 : 2)}><ToolIcon size={14} /></button>;
+          })}
+        </div>
+      </div>
+      <div>
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Geometry</h3>
+        <div className="grid grid-cols-2 gap-1">
+          {(['union', 'intersection', 'difference', 'exclusion'] as const).map(operation => <button key={operation} onClick={() => runBoolean(operation)} className="px-2 py-1.5 bg-black/30 border border-white/10 rounded-md text-xs capitalize hover:border-primary/40">{operation}</button>)}
+          <button onClick={() => run(combineSelection)} className="px-2 py-1.5 bg-black/30 border border-white/10 rounded-md text-xs hover:border-primary/40">Combine</button>
+          <button onClick={() => run(breakApartSelection)} className="px-2 py-1.5 bg-black/30 border border-white/10 rounded-md text-xs hover:border-primary/40">Break apart</button>
+        </div>
+        <div className="mt-2 flex gap-1">
+          <input aria-label="Offset amount" type="number" value={offset} onChange={event => setOffset(Number(event.target.value))} className="w-20 bg-black/40 border border-white/10 rounded-md px-2 py-1 text-xs font-mono" />
+          <button onClick={() => run(() => offsetSelection(offset))} className="flex-1 px-2 py-1 bg-black/30 border border-white/10 rounded-md text-xs hover:border-primary/40">Offset rectangles</button>
+        </div>
+        {notice && <p role="status" className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{notice}</p>}
+      </div>
+    </div>
+  );
+}
 
 function PropertiesTab() {
-  const { objects, selection, artboard } = useEditorStore();
+  const { objects, selection, artboard, unit } = useEditorStore();
   const selectedObj = objects.find(o => o.id === selection[0]);
 
   if (selection.length === 0) {
@@ -17,8 +103,8 @@ function PropertiesTab() {
               <label className="text-xs text-muted-foreground block mb-1">Width</label>
               <input 
                 type="number" 
-                value={artboard.width}
-                onChange={e => editorStore.set({ artboard: { ...artboard, width: Number(e.target.value) } })}
+               value={Number(pxToUnit(artboard.width, unit).toFixed(unit === 'px' ? 0 : 2))}
+               onChange={e => editorStore.set({ artboard: { ...artboard, width: Math.max(1, unitToPx(Number(e.target.value), unit)) } })}
                 className="w-full bg-black/40 border border-white/10 rounded-md px-2 py-1 text-sm focus:border-primary focus:outline-none"
               />
             </div>
@@ -26,8 +112,8 @@ function PropertiesTab() {
               <label className="text-xs text-muted-foreground block mb-1">Height</label>
               <input 
                 type="number" 
-                value={artboard.height}
-                onChange={e => editorStore.set({ artboard: { ...artboard, height: Number(e.target.value) } })}
+               value={Number(pxToUnit(artboard.height, unit).toFixed(unit === 'px' ? 0 : 2))}
+               onChange={e => editorStore.set({ artboard: { ...artboard, height: Math.max(1, unitToPx(Number(e.target.value), unit)) } })}
                 className="w-full bg-black/40 border border-white/10 rounded-md px-2 py-1 text-sm focus:border-primary focus:outline-none"
               />
             </div>
@@ -50,6 +136,7 @@ function PropertiesTab() {
             </div>
           </div>
         </div>
+        <PrecisionPanel />
         <div className="flex items-center justify-center h-32 border border-dashed border-white/10 rounded-lg bg-black/20">
            <p className="text-xs text-muted-foreground">Select an object to edit</p>
         </div>
@@ -63,7 +150,8 @@ function PropertiesTab() {
         <div className="bg-primary/10 border border-primary/20 p-3 rounded-lg flex items-center justify-between">
            <span className="text-sm font-medium text-primary">{selection.length} Objects Selected</span>
         </div>
-        {/* Multi-edit attributes could go here */}
+        <SelectionTools />
+        <PrecisionPanel />
       </div>
     );
   }
@@ -73,9 +161,12 @@ function PropertiesTab() {
   const handleUpdate = (partial: Partial<VectorObject>) => {
     updateObject(selectedObj.id, partial);
   };
+  const displayed = (value: number) => Number(pxToUnit(value, unit).toFixed(unit === 'px' ? 0 : 2));
+  const updateMeasurement = (key: 'x' | 'y' | 'width' | 'height', value: number) => handleUpdate({ [key]: key === 'width' || key === 'height' ? Math.max(0.1, unitToPx(value, unit)) : unitToPx(value, unit) });
 
   return (
     <div className="p-4 space-y-6">
+      <PrecisionPanel />
       {/* Layout */}
       <div>
         <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2"><Box size={14}/> Layout</h3>
@@ -84,8 +175,8 @@ function PropertiesTab() {
             <span className="text-xs text-muted-foreground w-4">X</span>
             <input 
               type="number" 
-              value={Math.round(selectedObj.x)}
-              onChange={e => handleUpdate({ x: Number(e.target.value) })}
+              value={displayed(selectedObj.x)}
+              onChange={e => updateMeasurement('x', Number(e.target.value))}
               className="w-full bg-transparent border-none py-1.5 text-sm focus:outline-none text-right font-mono"
             />
           </div>
@@ -93,8 +184,8 @@ function PropertiesTab() {
             <span className="text-xs text-muted-foreground w-4">Y</span>
             <input 
               type="number" 
-              value={Math.round(selectedObj.y)}
-              onChange={e => handleUpdate({ y: Number(e.target.value) })}
+              value={displayed(selectedObj.y)}
+              onChange={e => updateMeasurement('y', Number(e.target.value))}
               className="w-full bg-transparent border-none py-1.5 text-sm focus:outline-none text-right font-mono"
             />
           </div>
@@ -102,8 +193,8 @@ function PropertiesTab() {
             <span className="text-xs text-muted-foreground w-4">W</span>
             <input 
               type="number" 
-              value={Math.round(selectedObj.width)}
-              onChange={e => handleUpdate({ width: Math.max(1, Number(e.target.value)) })}
+              value={displayed(selectedObj.width)}
+              onChange={e => updateMeasurement('width', Number(e.target.value))}
               className="w-full bg-transparent border-none py-1.5 text-sm focus:outline-none text-right font-mono"
             />
           </div>
@@ -111,8 +202,8 @@ function PropertiesTab() {
             <span className="text-xs text-muted-foreground w-4">H</span>
             <input 
               type="number" 
-              value={Math.round(selectedObj.height)}
-              onChange={e => handleUpdate({ height: Math.max(1, Number(e.target.value)) })}
+              value={displayed(selectedObj.height)}
+              onChange={e => updateMeasurement('height', Number(e.target.value))}
               className="w-full bg-transparent border-none py-1.5 text-sm focus:outline-none text-right font-mono"
             />
           </div>
@@ -203,25 +294,52 @@ function PropertiesTab() {
         </div>
       </div>
 
+      <div className="h-px bg-white/10" />
+      <SelectionTools />
+
       {selectedObj.type === 'text' && (
         <>
           <div className="h-px bg-white/10" />
           <div>
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Text</h3>
-            <textarea 
+            <textarea
               value={selectedObj.text}
               onChange={e => handleUpdate({ text: e.target.value })}
               className="w-full bg-black/40 border border-white/10 rounded-md px-2 py-2 text-sm focus:border-primary focus:outline-none min-h-[60px] resize-y"
             />
-            <div className="flex items-center gap-2 mt-2 bg-black/40 border border-white/10 rounded-md px-2 focus-within:border-primary">
-              <span className="text-xs text-muted-foreground w-12">Size</span>
-              <input 
-                type="number" 
-                value={selectedObj.fontSize}
-                onChange={e => handleUpdate({ fontSize: Number(e.target.value) })}
-                className="w-full bg-transparent border-none py-1.5 text-sm focus:outline-none text-right font-mono"
-              />
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <label className="text-xs text-muted-foreground">Family
+                <select value={selectedObj.fontFamily || 'Inter'} onChange={e => handleUpdate({ fontFamily: e.target.value })} className="mt-1 w-full bg-black/40 border border-white/10 rounded-md px-2 py-1.5 text-foreground">
+                  {['Inter', 'Arial', 'Georgia', 'Courier New', 'Trebuchet MS'].map(font => <option key={font}>{font}</option>)}
+                </select>
+              </label>
+              <label className="text-xs text-muted-foreground">Weight
+                <select value={selectedObj.fontWeight || '400'} onChange={e => handleUpdate({ fontWeight: e.target.value })} className="mt-1 w-full bg-black/40 border border-white/10 rounded-md px-2 py-1.5 text-foreground">
+                  {['300', '400', '500', '600', '700', '800'].map(weight => <option key={weight}>{weight}</option>)}
+                </select>
+              </label>
+              <label className="text-xs text-muted-foreground">Size
+                <input type="number" min="1" value={selectedObj.fontSize || 16} onChange={e => handleUpdate({ fontSize: Math.max(1, Number(e.target.value)) })} className="mt-1 w-full bg-black/40 border border-white/10 rounded-md px-2 py-1.5 text-foreground font-mono" />
+              </label>
+              <label className="text-xs text-muted-foreground">Spacing
+                <input type="number" value={selectedObj.letterSpacing || 0} onChange={e => handleUpdate({ letterSpacing: Number(e.target.value) })} className="mt-1 w-full bg-black/40 border border-white/10 rounded-md px-2 py-1.5 text-foreground font-mono" />
+              </label>
+              <label className="text-xs text-muted-foreground">Line height
+                <input type="number" min="0.5" step="0.1" value={selectedObj.lineHeight || 1.2} onChange={e => handleUpdate({ lineHeight: Math.max(0.5, Number(e.target.value)) })} className="mt-1 w-full bg-black/40 border border-white/10 rounded-md px-2 py-1.5 text-foreground font-mono" />
+              </label>
+              <label className="text-xs text-muted-foreground">Alignment
+                <select value={selectedObj.textAlign || 'left'} onChange={e => handleUpdate({ textAlign: e.target.value as VectorObject['textAlign'] })} className="mt-1 w-full bg-black/40 border border-white/10 rounded-md px-2 py-1.5 text-foreground">
+                  <option value="left">Left</option><option value="center">Center</option><option value="right">Right</option>
+                </select>
+              </label>
             </div>
+            <label className="text-xs text-muted-foreground block mt-2">Text path
+              <select value={selectedObj.textPathId || ''} onChange={e => handleUpdate({ textPathId: e.target.value || undefined })} className="mt-1 w-full bg-black/40 border border-white/10 rounded-md px-2 py-1.5 text-foreground">
+                <option value="">No path</option>
+                {objects.filter(object => object.type === 'path').map(path => <option key={path.id} value={path.id}>{path.name}</option>)}
+              </select>
+            </label>
+            <p className="mt-2 text-[11px] text-muted-foreground">Text remains editable. Outline conversion is not supported in this version.</p>
           </div>
         </>
       )}

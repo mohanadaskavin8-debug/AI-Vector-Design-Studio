@@ -1,11 +1,15 @@
-import { SVGProps } from 'react';
+import React, { SVGProps } from 'react';
 import { VectorObject } from '../../lib/types';
+import { useEditorStore } from '../../store/editor';
+import { nodesToSVGPath } from '../../lib/pathUtils';
 
 interface ShapeRendererProps extends SVGProps<SVGGElement> {
   object: VectorObject;
 }
 
 export function ShapeRenderer({ object, ...props }: ShapeRendererProps) {
+  const { objects } = useEditorStore();
+  
   if (!object.visible) return null;
 
   const commonProps = {
@@ -43,24 +47,69 @@ export function ShapeRenderer({ object, ...props }: ShapeRendererProps) {
           />
         </g>
       );
-    case 'text':
+    case 'text': {
+      const lines = (object.text || 'Text').split('\n');
+      const textX = object.textAlign === 'center'
+        ? object.x + object.width / 2
+        : object.textAlign === 'right'
+          ? object.x + object.width
+          : object.x;
+      let textContent = (
+        <text
+          x={textX}
+          y={object.y + (object.fontSize || 16)}
+          fontSize={object.fontSize || 16}
+          fontFamily={object.fontFamily || 'Inter'}
+          fontWeight={object.fontWeight || 'normal'}
+          letterSpacing={object.letterSpacing || 0}
+          textAnchor={object.textAlign === 'center' ? 'middle' : object.textAlign === 'right' ? 'end' : 'start'}
+          fill={object.fill}
+          opacity={object.opacity}
+          pointerEvents="visiblePainted"
+          style={{ userSelect: 'none' }}
+        >
+          {lines.map((line, index) => (
+            <tspan key={index} x={textX} dy={index === 0 ? 0 : `${object.lineHeight || 1.2}em`}>{line || ' '}</tspan>
+          ))}
+        </text>
+      );
+
+      if (object.textPathId) {
+        const pathObj = objects.find(o => o.id === object.textPathId);
+        if (pathObj) {
+          const pathData = pathObj.points || (pathObj.nodes ? nodesToSVGPath(pathObj.nodes, pathObj.closed) : '');
+          if (pathData) {
+          textContent = (
+            <>
+              <defs>
+                <path id={`path-${object.id}`} d={pathData} />
+              </defs>
+              <text
+                fontSize={object.fontSize || 16}
+                fontFamily={object.fontFamily || 'Inter'}
+                fontWeight={object.fontWeight || 'normal'}
+                letterSpacing={object.letterSpacing || 0}
+                fill={object.fill}
+                opacity={object.opacity}
+                pointerEvents="visiblePainted"
+                style={{ userSelect: 'none' }}
+              >
+                <textPath href={`#path-${object.id}`} startOffset={object.textAlign === 'center' ? '50%' : object.textAlign === 'right' ? '100%' : '0%'} textAnchor={object.textAlign === 'center' ? 'middle' : object.textAlign === 'right' ? 'end' : 'start'}>
+                  {object.text || 'Text'}
+                </textPath>
+              </text>
+            </>
+          );
+          }
+        }
+      }
+
       return (
-        <g {...props}>
-          <text
-            x={object.x}
-            y={object.y + (object.fontSize || 16)}
-            fontSize={object.fontSize || 16}
-            fontFamily={object.fontFamily || 'Inter'}
-            fill={object.fill}
-            opacity={object.opacity}
-            transform={`rotate(${object.rotation} ${object.x + object.width / 2} ${object.y + object.height / 2})`}
-            pointerEvents="visiblePainted"
-            style={{ userSelect: 'none' }}
-          >
-            {object.text || 'Text'}
-          </text>
+        <g {...props} transform={`rotate(${object.rotation} ${object.x + object.width / 2} ${object.y + object.height / 2})`}>
+          {textContent}
         </g>
       );
+    }
     case 'line':
       return (
         <g {...props}>
@@ -78,7 +127,6 @@ export function ShapeRenderer({ object, ...props }: ShapeRendererProps) {
         </g>
       );
     case 'polygon': {
-      // Draw a diamond that fills the bounding box
       const cx = object.x + object.width / 2;
       const cy = object.y + object.height / 2;
       const points = object.points || `${cx},${object.y} ${object.x + object.width},${cy} ${cx},${object.y + object.height} ${object.x},${cy}`;
@@ -93,7 +141,6 @@ export function ShapeRenderer({ object, ...props }: ShapeRendererProps) {
       );
     }
     case 'star': {
-      // 5 point star inside bounding box
       const cx = object.x + object.width / 2;
       const cy = object.y + object.height / 2;
       const outerRadius = Math.min(object.width, object.height) / 2;
@@ -111,6 +158,36 @@ export function ShapeRenderer({ object, ...props }: ShapeRendererProps) {
         <g {...props}>
           <polygon
             points={points.trim()}
+            {...commonProps}
+          />
+        </g>
+      );
+    }
+    case 'path': {
+      let d = object.points || '';
+      if (!d && object.nodes && object.nodes.length > 0) {
+         d = nodesToSVGPath(object.nodes, object.closed);
+      }
+      return (
+        <g {...props}>
+          <path
+            d={d}
+            fillRule="evenodd"
+            {...commonProps}
+          />
+        </g>
+      );
+    }
+    case 'image': {
+      return (
+        <g {...props}>
+          <image
+            x={object.x}
+            y={object.y}
+            width={Math.max(0.1, object.width)}
+            height={Math.max(0.1, object.height)}
+            href={object.imageSrc}
+            preserveAspectRatio="none"
             {...commonProps}
           />
         </g>
