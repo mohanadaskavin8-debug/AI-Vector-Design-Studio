@@ -45,6 +45,7 @@ export default function Workspace() {
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0 && e.button !== 1) return; // Only left and middle click
+    e.currentTarget.setPointerCapture(e.pointerId);
     
     // Middle click or Space + Left click = Pan
     if (e.button === 1 || isSpacePressed) {
@@ -83,7 +84,7 @@ export default function Workspace() {
         locked: false,
         text: activeTool === 'text' ? 'New Text' : undefined
       };
-      setObjects([...objects, newObj], true);
+      setObjects([...objects, newObj], false);
       selectObject(newId);
       setDragState({ type: 'draw', shapeId: newId, startX: svgPoint.x, startY: svgPoint.y });
     } else if (isBg) {
@@ -109,7 +110,7 @@ export default function Workspace() {
         y: h < 0 ? svgPoint.y : dragState.startY,
         width: Math.abs(w),
         height: Math.abs(h)
-      });
+      }, false);
     } else if (dragState.type === 'move') {
       const svgPoint = getSvgPoint(e.clientX, e.clientY);
       const dx = svgPoint.x - dragState.startX;
@@ -148,22 +149,26 @@ export default function Workspace() {
       
       updateObject(dragState.shapeId, {
         x: newX, y: newY, width: newW, height: newH
-      });
+      }, false);
     }
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (e: React.PointerEvent) => {
     if (dragState.type !== 'idle' && dragState.type !== 'pan') {
       // Commit to history when finishing a drag that modified objects
       setObjects(editorStore.get().objects, true);
+    }
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
     }
     setDragState({ type: 'idle' });
   };
 
   const handleWheel = (e: React.WheelEvent) => {
-    if (e.ctrlKey || e.metaKey) {
+    const shouldZoom = e.ctrlKey || e.metaKey || e.deltaMode === WheelEvent.DOM_DELTA_LINE;
+    if (shouldZoom) {
       e.preventDefault();
-      const zoomSensitivity = 0.005;
+      const zoomSensitivity = e.ctrlKey || e.metaKey ? 0.005 : 0.035;
       const delta = -e.deltaY * zoomSensitivity;
       const newZoom = Math.min(Math.max(0.1, zoom + delta), 5);
       
@@ -191,11 +196,16 @@ export default function Workspace() {
     if (activeTool === 'select') {
       const obj = objects.find(o => o.id === id);
       if (obj?.locked) return;
-      
+      const groupedIds = obj?.groupId
+        ? objects.filter(item => item.groupId === obj.groupId).map(item => item.id)
+        : [id];
+      let dragSelection = selection;
       if (e.shiftKey) {
-        selectObject(id, true);
+        groupedIds.forEach(groupedId => selectObject(groupedId, true));
+        dragSelection = Array.from(new Set([...selection, ...groupedIds]));
       } else if (!selection.includes(id)) {
-        selectObject(id);
+        editorStore.set({ selection: groupedIds });
+        dragSelection = groupedIds;
       }
       
       const svgPoint = getSvgPoint(e.clientX, e.clientY);
@@ -203,7 +213,7 @@ export default function Workspace() {
         type: 'move',
         startX: svgPoint.x,
         startY: svgPoint.y,
-        startObjects: objects.filter(o => selection.includes(o.id) || o.id === id)
+        startObjects: objects.filter(o => dragSelection.includes(o.id))
       });
     }
   };

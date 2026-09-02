@@ -1,10 +1,12 @@
-# [Project name]
+# Vector Studio
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A desktop-first browser vector editor with a polished SVG workspace and extensible foundations for AI-assisted design and embroidery preparation.
 
 ## Run & Operate
 
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/vector-studio run dev` — run the Vector Studio editor
+- `pnpm --filter @workspace/vector-studio run typecheck` — verify the editor
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
@@ -22,15 +24,22 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- Editor application: `artifacts/vector-studio/`
+- Editor state and commands: `artifacts/vector-studio/src/store/editor.ts`
+- SVG workspace interactions: `artifacts/vector-studio/src/components/editor/Workspace.tsx`
+- Visual tokens and reduced-motion behavior: `artifacts/vector-studio/src/index.css`
+- Shared API contract for later cloud features: `lib/api-spec/openapi.yaml`
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The first editor milestone is frontend-only and persists projects locally; cloud persistence belongs to the later productization milestone.
+- SVG remains the editable source of truth. Raster output is generated from the current SVG document.
+- AI and embroidery surfaces must identify preview or unavailable capabilities honestly until their dedicated milestones provide real engines.
+- The editor uses a small external store so pointer-driven canvas updates do not force unrelated interface components to rerender.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+Users can create, select, move, resize, rotate, style, group, organize, import, and export common vector objects. The workspace includes undo/redo, local recovery, keyboard commands, layers, contextual properties, zoom and pan, and editable demo artwork.
 
 ## User preferences
 

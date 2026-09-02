@@ -1,11 +1,11 @@
 import React, { useRef } from 'react';
 import { useEditorStore, editorStore, undo, redo, setObjects } from '../../store/editor';
-import { Download, Undo2, Redo2, ZoomIn, ZoomOut, MousePointerSquareDashed, FileImage, Image as ImageIcon, Upload } from 'lucide-react';
+import { Undo2, Redo2, ZoomIn, ZoomOut, MousePointerSquareDashed, FileImage, Image as ImageIcon, Upload, Check } from 'lucide-react';
 import { VectorObject } from '../../lib/types';
 import { generateId } from '../../lib/utils';
 
 export default function TopBar() {
-  const { zoom, history, historyIndex, objects, artboard } = useEditorStore();
+  const { zoom, history, historyIndex, objects, artboard, projectName } = useEditorStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const getSVGContent = () => {
@@ -167,7 +167,14 @@ export default function TopBar() {
         <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/20 text-primary shadow-[0_0_15px_rgba(139,92,246,0.15)]">
           <MousePointerSquareDashed size={20} />
         </div>
-        <span className="font-semibold text-sm tracking-wide">VECTOR STUDIO</span>
+        <div>
+          <span className="font-semibold text-sm tracking-wide block">VECTOR STUDIO</span>
+          <div className="flex items-center gap-1.5">
+            <input aria-label="Project name" value={projectName} onChange={event => editorStore.set({ projectName: event.target.value })} className="w-36 bg-transparent text-[10px] text-muted-foreground outline-none focus:text-foreground" />
+            <Check size={10} className="text-emerald-400" aria-hidden="true" />
+            <span className="text-[9px] text-muted-foreground">Saved locally</span>
+          </div>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 bg-black/20 rounded-lg p-1 border border-white/5">

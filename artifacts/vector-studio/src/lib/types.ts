@@ -20,6 +20,7 @@ export interface VectorObject {
   fontSize?: number;
   fontFamily?: string;
   points?: string; // used for custom paths if needed, though for standard polygon we can derive it
+  groupId?: string;
 }
 
 export interface DocumentState {
@@ -31,4 +32,6 @@ export interface DocumentState {
   artboard: { width: number; height: number; fill: string };
   history: VectorObject[][];
   historyIndex: number;
+  projectName: string;
+  saveStatus: 'saved' | 'saving';
 }

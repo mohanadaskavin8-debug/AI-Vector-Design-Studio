@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useEditorStore, editorStore, updateObject, updateSelectedObjects, selectObject, setObjects } from '../../store/editor';
-import { Layers, Box, Wand2, Scissors, Eye, EyeOff, Lock, Unlock, Copy, Trash2 } from 'lucide-react';
+import { Box, Wand2, Scissors, Eye, EyeOff, Lock, Unlock, Copy, Trash2, Group, Ungroup, Star } from 'lucide-react';
 import { VectorObject } from '../../lib/types';
 
 function PropertiesTab() {
@@ -72,7 +72,6 @@ function PropertiesTab() {
 
   const handleUpdate = (partial: Partial<VectorObject>) => {
     updateObject(selectedObj.id, partial);
-    setObjects(editorStore.get().objects, true);
   };
 
   return (
@@ -232,17 +231,16 @@ function PropertiesTab() {
 
 function LayersTab() {
   const { objects, selection } = useEditorStore();
+  const [renamingId, setRenamingId] = useState<string | null>(null);
 
   const toggleVisibility = (e: React.MouseEvent, id: string, visible: boolean) => {
     e.stopPropagation();
     updateObject(id, { visible: !visible });
-    setObjects(editorStore.get().objects, true);
   };
 
   const toggleLock = (e: React.MouseEvent, id: string, locked: boolean) => {
     e.stopPropagation();
     updateObject(id, { locked: !locked });
-    setObjects(editorStore.get().objects, true);
   };
 
   const deleteSelected = () => {
@@ -305,11 +303,15 @@ function LayersTab() {
               {obj.type === 'rect' && <Box size={10} />}
               {obj.type === 'ellipse' && <div className="w-2 h-2 rounded-full border border-current" />}
               {obj.type === 'polygon' && <div className="w-0 h-0 border-l-[4px] border-r-[4px] border-b-[6px] border-l-transparent border-r-transparent border-b-current" />}
-              {obj.type === 'star' && <div className="text-[10px] leading-none">★</div>}
+              {obj.type === 'star' && <Star size={10} />}
               {obj.type === 'text' && <div className="text-[10px] font-bold leading-none">T</div>}
               {obj.type === 'line' && <div className="w-2 h-[2px] bg-current transform -rotate-45" />}
             </div>
-            <div className="flex-1 truncate">{obj.name}</div>
+             {renamingId === obj.id ? (
+               <input autoFocus value={obj.name} onClick={e => e.stopPropagation()} onChange={e => updateObject(obj.id, { name: e.target.value }, false)} onBlur={() => { setObjects(editorStore.get().objects, true); setRenamingId(null); }} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }} className="flex-1 min-w-0 bg-black/40 border border-primary/40 rounded px-1.5 py-0.5 outline-none" />
+             ) : (
+               <button className="flex-1 min-w-0 truncate text-left" onDoubleClick={e => { e.stopPropagation(); setRenamingId(obj.id); }}>{obj.name}</button>
+             )}
             <button onClick={(e) => toggleLock(e, obj.id, obj.locked)} className="opacity-50 hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity">
               {obj.locked ? <Lock size={14} /> : <Unlock size={14} />}
             </button>
@@ -326,6 +328,8 @@ function LayersTab() {
           <button onClick={sendBackward} className="p-1.5 hover:bg-white/10 rounded transition-colors" title="Send Backward">↓</button>
           <div className="w-px bg-white/10" />
           <button onClick={duplicateSelected} className="p-1.5 hover:bg-white/10 rounded transition-colors" title="Duplicate"><Copy size={16} /></button>
+           <button onClick={() => { const groupId = Math.random().toString(36).slice(2); updateSelectedObjects({ groupId }); }} disabled={selection.length < 2} className="p-1.5 hover:bg-white/10 disabled:opacity-30 rounded transition-colors" title="Group"><Group size={16} /></button>
+           <button onClick={() => updateSelectedObjects({ groupId: undefined })} className="p-1.5 hover:bg-white/10 rounded transition-colors" title="Ungroup"><Ungroup size={16} /></button>
           <button onClick={deleteSelected} className="p-1.5 hover:bg-destructive/20 text-destructive rounded transition-colors" title="Delete"><Trash2 size={16} /></button>
         </div>
       )}
@@ -341,13 +345,11 @@ function AITab() {
     setIsProcessing(true);
     setTimeout(() => {
       setIsProcessing(false);
-      // Mock deterministic actions
+      // Local deterministic actions stay reversible in editor history.
       if (label === 'Simplify Styles' && selection.length > 0) {
         updateSelectedObjects({ stroke: 'none', opacity: 1 });
-        setObjects(editorStore.get().objects, true);
       } else if (label === 'Recolor to Violet' && selection.length > 0) {
         updateSelectedObjects({ fill: '#8B5CF6' });
-        setObjects(editorStore.get().objects, true);
       }
     }, 800);
   };
@@ -429,7 +431,7 @@ function EmbroideryTab() {
 
       <div className="mt-4 p-3 border border-white/5 bg-black/20 rounded-xl">
          <p className="text-xs text-muted-foreground text-center">
-            Machine file export (.pes, .dst) is available in preview foundation.
+            Preview estimates only. Production machine-file export is not included in this foundation.
          </p>
       </div>
     </div>
@@ -447,7 +449,7 @@ export default function RightSidebar() {
   ] as const;
 
   return (
-    <div className="absolute right-6 top-20 bottom-6 w-80 bg-card/80 backdrop-blur-xl border border-white/5 rounded-2xl shadow-xl flex flex-col overflow-hidden z-10">
+    <div className="editor-inspector absolute right-6 top-20 bottom-6 w-80 bg-card/80 backdrop-blur-xl border border-white/5 rounded-2xl shadow-xl flex flex-col overflow-hidden z-10 transition-[width,right] duration-200">
       <div className="flex p-2 gap-1 border-b border-white/5 bg-black/20">
         {tabs.map(tab => (
           <button

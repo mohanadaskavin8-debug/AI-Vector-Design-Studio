@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { useEditorStore, editorStore } from '../../store/editor';
-import Workspace from './Workspace';
-import Toolbar from './Toolbar';
-import TopBar from './TopBar';
-import RightSidebar from './RightSidebar';
+import { useEditorStore, editorStore, deleteSelection, duplicateSelection, groupSelection, ungroupSelection, undo, redo } from '../store/editor';
+import Workspace from '../components/editor/Workspace';
+import Toolbar from '../components/editor/Toolbar';
+import TopBar from '../components/editor/TopBar';
+import RightSidebar from '../components/editor/RightSidebar';
 import { Command } from 'lucide-react';
 
 export default function Editor() {
   const [cmdOpen, setCmdOpen] = useState(false);
-  const { objects, selection } = useEditorStore();
+  const { selection } = useEditorStore();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -21,17 +21,41 @@ export default function Editor() {
       // Delete selection
       if (e.key === 'Backspace' || e.key === 'Delete') {
         if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
-          if (selection.length > 0) {
-             const newObjs = objects.filter(o => !selection.includes(o.id));
-             editorStore.set({ objects: newObjs, selection: [] });
-          }
+          deleteSelection();
         }
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        duplicateSelection();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'g') {
+        e.preventDefault();
+        if (e.shiftKey) ungroupSelection();
+        else groupSelection();
+      }
+      if (e.key === 'Escape') {
+        setCmdOpen(false);
+        editorStore.set({ selection: [] });
       }
     };
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [objects, selection]);
+  }, [selection]);
+
+  const commands = [
+    { label: 'Undo last change', shortcut: '⌘ Z', action: undo },
+    { label: 'Redo last change', shortcut: '⇧ ⌘ Z', action: redo },
+    { label: 'Duplicate selection', shortcut: '⌘ D', action: duplicateSelection },
+    { label: 'Group selection', shortcut: '⌘ G', action: groupSelection },
+    { label: 'Ungroup selection', shortcut: '⇧ ⌘ G', action: ungroupSelection },
+    { label: 'Clear selection', shortcut: 'Esc', action: () => editorStore.set({ selection: [] }) },
+  ];
 
   return (
     <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-background text-foreground select-none flex flex-col">
@@ -42,10 +66,9 @@ export default function Editor() {
         <RightSidebar />
       </div>
       
-      {/* Simple Command Palette Mock */}
       {cmdOpen && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-start justify-center pt-[20vh]">
-          <div className="bg-card w-[400px] max-w-[90vw] rounded-xl border border-white/10 shadow-2xl overflow-hidden flex flex-col">
+         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-start justify-center pt-[20vh]" onPointerDown={() => setCmdOpen(false)}>
+           <div className="bg-card w-[440px] max-w-[90vw] rounded-xl border border-white/10 shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200" onPointerDown={e => e.stopPropagation()}>
              <div className="flex items-center px-4 py-3 border-b border-white/10">
                <Command className="text-muted-foreground mr-3" size={18} />
                <input 
@@ -59,10 +82,12 @@ export default function Editor() {
                />
              </div>
              <div className="p-2 space-y-1">
-               <div className="px-3 py-1.5 text-xs text-muted-foreground font-semibold">Actions</div>
-               <button className="w-full text-left px-3 py-2 text-sm hover:bg-white/5 rounded-md" onClick={() => setCmdOpen(false)}>Export SVG</button>
-               <button className="w-full text-left px-3 py-2 text-sm hover:bg-white/5 rounded-md" onClick={() => setCmdOpen(false)}>Toggle Embroidery Mode</button>
-               <button className="w-full text-left px-3 py-2 text-sm hover:bg-white/5 rounded-md" onClick={() => setCmdOpen(false)}>Clear Canvas</button>
+                <div className="px-3 py-1.5 text-xs text-muted-foreground font-semibold">Editor commands</div>
+                {commands.map(command => (
+                  <button key={command.label} className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-white/5 focus:bg-white/5 focus:outline-none rounded-md transition-colors" onClick={() => { command.action(); setCmdOpen(false); }}>
+                    <span>{command.label}</span><span className="text-[10px] text-muted-foreground font-mono">{command.shortcut}</span>
+                  </button>
+                ))}
              </div>
           </div>
         </div>

@@ -195,6 +195,22 @@
     background-size: 20px 20px;
     background-position: 0 0;
   }
+  button, input, textarea {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-1 focus-visible:ring-offset-background;
+  }
+}
+
+@media (max-width: 1100px) {
+  .editor-inspector { width: 17rem; right: 0.75rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /**
