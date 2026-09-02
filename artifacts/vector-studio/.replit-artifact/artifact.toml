@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Vector Studio"
+description = "A premium browser-based vector graphics editor with a functional SVG canvas, shape creation, selection and transforms, layers, properties, undo and redo, zoom and pan, and extensible foundations for AI-assisted design and embroidery workflows."
+version = "1.0.0"
+id = "artifacts/vector-studio"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23003
+
+[services.development]
+run = "pnpm --filter @workspace/vector-studio run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/vector-studio", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/vector-studio/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23003"
+BASE_PATH = "/"

@@ -1,0 +1,1220 @@
+# BUILD BRIEF — NEXT-GENERATION AI VECTOR DESIGN PLATFORM
+
+You are an elite team of product designers, UX designers, frontend engineers, graphics engineers, motion designers, AI engineers, and software architects working together to build a world-class creative application.
+
+Build a **fully functional, web-based vector graphics editor** that is dramatically more modern, intuitive, visually stunning, and AI-powered than traditional vector editors such as Inkscape.
+
+This is NOT a landing page.
+
+This is NOT a mockup.
+
+This is NOT a static dashboard.
+
+Build the actual interactive application.
+
+The product should feel like it was designed and engineered by a **$20 million world-class product team** and should be polished enough that a company like Adobe, Figma, or another major design-software company would immediately recognize the quality.
+
+The visual benchmark is:
+
+**Figma × Linear × Apple × Adobe × modern AI software**
+
+but DO NOT simply copy their interfaces. Create an original visual identity.
+
+---
+
+# 1. CORE PRODUCT VISION
+
+The product is a next-generation creative platform combining:
+
+* Professional vector design
+* AI image generation
+* AI vectorization
+* AI-assisted editing
+* AI design suggestions
+* Embroidery digitization
+* PES/DST/JEF and other embroidery exports
+* Product mockups
+* Manufacturing preparation
+* Professional exports
+* Modern collaboration
+* Extremely polished motion design
+
+The goal is to make professional creative software significantly easier to use without sacrificing advanced functionality.
+
+The application should feel:
+
+* Futuristic
+* Premium
+* Extremely polished
+* Fast
+* Intelligent
+* Minimal
+* Sophisticated
+* Creative
+* Technical
+* Addictive to use
+
+---
+
+# 2. IMPORTANT DEVELOPMENT RULE
+
+Do NOT build a fake UI where buttons do nothing.
+
+Every major interaction should actually work.
+
+If a sophisticated feature cannot be fully implemented in the first version, build a clean working foundation and architecture for it rather than pretending it works.
+
+Prioritize a functional MVP with excellent architecture.
+
+The application should be structured so additional AI, vector, and embroidery functionality can be added later without rewriting the entire application.
+
+---
+
+# 3. TECHNOLOGY
+
+Use a modern production-quality stack.
+
+Preferred:
+
+* React
+* TypeScript
+* Vite or an equivalent modern frontend build system
+* Tailwind CSS or carefully structured CSS
+* SVG as the initial vector rendering format
+* Lucide or another high-quality icon system
+* Framer Motion or an equivalent animation library
+* Zustand or another lightweight state-management solution
+
+Use a component-based architecture.
+
+Keep code modular.
+
+Separate:
+
+* UI
+* Canvas
+* Vector engine
+* AI functionality
+* Export functionality
+* Embroidery functionality
+* Project management
+* State management
+
+Do not create one massive component.
+
+---
+
+# 4. APPLICATION STRUCTURE
+
+The primary editor should contain:
+
+## LEFT SIDEBAR
+
+A vertical creative toolbar.
+
+Tools:
+
+* Select
+* Node / Direct Select
+* Pen / Bezier
+* Rectangle
+* Ellipse
+* Polygon
+* Star
+* Line
+* Freehand
+* Text
+* Image
+* Eyedropper
+* Gradient
+* AI
+* Embroidery
+
+The toolbar should be extremely sleek.
+
+Icons should be minimalist line icons.
+
+On hover:
+
+* Slight scale
+* Brightness increase
+* Subtle glow
+* Smooth tooltip
+
+The selected tool should have a clear animated active state.
+
+---
+
+# 5. TOP BAR
+
+Create a premium top navigation bar containing:
+
+LEFT:
+
+* Product logo
+* Project name
+* Save status
+
+CENTER:
+
+* Undo
+* Redo
+* Zoom percentage
+* Zoom controls
+
+RIGHT:
+
+* Share
+* Preview
+* AI
+* Export
+* User/profile
+
+Keep it extremely clean.
+
+Do not overcrowd it.
+
+---
+
+# 6. MAIN CANVAS
+
+The canvas is the most important part of the application.
+
+It should occupy the majority of the screen.
+
+Create an infinite-style workspace with:
+
+* Dark background
+* Technical dot grid
+* Smooth panning
+* Smooth zooming
+* Centered artboards
+* Selection boxes
+* Transform handles
+* Vector nodes
+* Guides
+* Snap indicators
+
+The dot grid should subtly respond to zoom.
+
+When zooming out:
+
+The dots become smaller and less prominent.
+
+When zooming in:
+
+The grid becomes more detailed.
+
+Canvas interactions should feel extremely smooth.
+
+Support:
+
+* Mouse wheel zoom
+* Trackpad zoom
+* Click-drag pan
+* Space + drag pan
+* Object selection
+* Multi-selection
+* Resize
+* Rotate
+
+---
+
+# 7. RIGHT PROPERTIES SIDEBAR
+
+Create a context-aware properties panel.
+
+When nothing is selected:
+
+Show:
+
+* Document
+* Canvas
+* Artboards
+* Layers
+* Project information
+
+When a shape is selected:
+
+Show:
+
+### Transform
+
+* X
+* Y
+* Width
+* Height
+* Rotation
+
+### Appearance
+
+* Fill
+* Stroke
+* Stroke width
+* Opacity
+* Blend mode
+
+### Shape
+
+* Corner radius
+* Geometry controls
+
+### Effects
+
+* Shadow
+* Blur
+* Glow
+
+When text is selected:
+
+Show:
+
+* Font
+* Weight
+* Size
+* Letter spacing
+* Line height
+* Alignment
+* Text color
+* Text on path
+
+When an embroidery object is selected:
+
+Show:
+
+* Stitch type
+* Stitch density
+* Stitch direction
+* Underlay
+* Pull compensation
+* Thread color
+* Stitch order
+* Estimated stitch count
+
+---
+
+# 8. BENTO PROPERTY DESIGN
+
+Do NOT make the properties sidebar look like a boring settings menu.
+
+Use modular Bento-style cards.
+
+Example:
+
+┌──────────────┬──────────────┐
+│ Position     │ Dimensions   │
+│ X / Y        │ W / H        │
+├──────────────┼──────────────┤
+│ Fill         │ Stroke       │
+├─────────────────────────────┤
+│ Effects                     │
+└─────────────────────────────┘
+
+Cards should:
+
+* Have subtle borders
+* Have slight transparency
+* Have rounded corners
+* Animate when expanding
+* Support collapsed/expanded states
+* Have clear hierarchy
+
+---
+
+# 9. COLOR SYSTEM
+
+Use a premium dark interface.
+
+Main background:
+
+#0D0E11
+
+Panels:
+
+#16171D
+
+Borders:
+
+#262933
+
+Primary accent:
+
+#8B5CF6
+
+Use the accent carefully.
+
+The interface should NOT look like a purple website.
+
+Purple should primarily indicate:
+
+* Active tools
+* Selected objects
+* Focus states
+* AI actions
+* Primary buttons
+* Important interactions
+
+Use neutral shades for most UI elements.
+
+---
+
+# 10. GLASSMORPHISM
+
+Use glass effects strategically.
+
+Floating elements should use:
+
+* backdrop-filter blur
+* translucent backgrounds
+* subtle white borders
+* soft shadows
+
+Use this for:
+
+* Floating toolbars
+* Context menus
+* Command palette
+* AI panel
+* Dropdowns
+* Floating actions
+
+Do not make everything glass.
+
+Glass should create hierarchy.
+
+---
+
+# 11. TYPOGRAPHY
+
+Use:
+
+**Inter** or **Geist Sans**
+
+Typography must be:
+
+* Crisp
+* Modern
+* Highly legible
+* Tight
+* Professional
+
+Avoid huge typography inside the editor.
+
+This is a professional application, not a marketing website.
+
+---
+
+# 12. MOTION DESIGN
+
+Motion is a core part of the product.
+
+Everything should feel fluid.
+
+Use smooth easing.
+
+Avoid excessive bouncing.
+
+Avoid childish animations.
+
+Animations should feel:
+
+**expensive, precise, physical, and intentional.**
+
+Implement:
+
+* Hover scale
+* Tool activation animation
+* Panel slide/fade
+* Modal transitions
+* Dropdown transitions
+* Selection animations
+* Canvas zoom transitions
+* Smooth number changes
+* Toast animations
+* AI generation animations
+* Page transitions where appropriate
+
+Aim for approximately 150–300ms for most micro-interactions.
+
+Use longer animations only for major transitions.
+
+---
+
+# 13. COMMAND PALETTE
+
+Implement:
+
+**⌘K / Ctrl+K**
+
+to open a beautiful command palette.
+
+It should allow searching:
+
+* Tools
+* Commands
+* Layers
+* AI actions
+* Export options
+* Settings
+
+Example:
+
+Search:
+
+"embroidery"
+
+Results:
+
+🧵 Digitize for embroidery
+
+🧵 Optimize stitches
+
+🧵 Preview embroidery
+
+⬇ Export PES
+
+The command palette should feel extremely premium.
+
+---
+
+# 14. AI SYSTEM
+
+AI must feel like a native part of the application.
+
+Do not simply add a generic chatbot.
+
+Create an AI creative assistant.
+
+Users should be able to type:
+
+"Make this logo more minimal."
+
+"Smooth these curves."
+
+"Make this symmetrical."
+
+"Remove the background."
+
+"Create 5 variations."
+
+"Turn this into a vector."
+
+"Prepare this for embroidery."
+
+"Make this text follow the curve."
+
+AI actions should modify editable design elements whenever possible.
+
+The user should retain control.
+
+---
+
+# 15. AI SIDEBAR
+
+Create an AI workspace that can open from the right side or as a floating panel.
+
+Include:
+
+* Prompt input
+* Suggested actions
+* Recent AI actions
+* Generated variations
+* Apply
+* Reject
+* Compare
+
+The AI panel should have a unique visual identity.
+
+Use subtle animated gradients/glows while AI is processing.
+
+Do NOT overdo glowing effects.
+
+---
+
+# 16. AI IMAGE GENERATION
+
+Create an interface where users can enter prompts.
+
+Example:
+
+"Create a futuristic dragon logo."
+
+Allow:
+
+* Generate
+* Regenerate
+* Create variations
+* Insert into canvas
+
+Generated content should integrate naturally into the design workspace.
+
+If an external AI API is not configured, create a clean provider abstraction and a mock/demo mode rather than hardcoding an unavailable API.
+
+---
+
+# 17. AI VECTORIZATION
+
+Allow users to upload:
+
+* PNG
+* JPG
+* Screenshot
+* Sketch
+
+Then provide an AI/vectorization workflow:
+
+Upload
+
+↓
+
+Analyze
+
+↓
+
+Remove background
+
+↓
+
+Detect shapes
+
+↓
+
+Convert to vectors
+
+↓
+
+Clean paths
+
+↓
+
+Insert editable SVG into canvas
+
+Provide controls for:
+
+* Detail level
+* Smoothing
+* Number of colors
+* Background removal
+
+The resulting vector should be editable.
+
+---
+
+# 18. AI DESIGN TOOLS
+
+Create quick AI actions:
+
+✨ Clean Up
+
+✨ Vectorize
+
+✨ Remove Background
+
+✨ Smooth Curves
+
+✨ Improve Symmetry
+
+✨ Generate Variations
+
+✨ Simplify
+
+✨ Add Texture
+
+✨ Recolor
+
+✨ Resize
+
+✨ Prepare for Print
+
+✨ Prepare for Embroidery
+
+---
+
+# 19. EMBROIDERY MODE
+
+Create a dedicated Embroidery Mode.
+
+Users should be able to select a design and choose:
+
+**Digitize for Embroidery**
+
+The interface should transform into an embroidery workspace.
+
+Show:
+
+* Stitch paths
+* Stitch direction
+* Density
+* Underlay
+* Thread colors
+* Stitch order
+* Jump stitches
+* Trim points
+
+Provide a realistic stitch preview.
+
+Show production information:
+
+**12,438 stitches**
+
+**6 thread colors**
+
+**82 × 45 mm**
+
+**Estimated sew time: 08:32**
+
+The numbers should update dynamically when possible.
+
+---
+
+# 20. EMBROIDERY FILE EXPORT
+
+Architect the application to support:
+
+* PES
+* DST
+* JEF
+* EXP
+* VP3
+* XXX
+
+Important:
+
+Do not falsely claim a file is production-ready if the implementation is only a mock.
+
+If actual PES generation cannot be implemented immediately, build a proper embroidery data model and exporter interface that can later connect to a real embroidery generation library/engine.
+
+The UI should clearly distinguish:
+
+* Demo preview
+* Actual generated file
+
+---
+
+# 21. PRODUCT MOCKUPS
+
+Create a Preview Mode.
+
+Allow designs to appear on:
+
+* T-shirts
+* Hoodies
+* Hats
+* Bags
+* Lifting straps
+* Packaging
+* Stickers
+
+Users should be able to switch between:
+
+**Design**
+
+and
+
+**Product Preview**
+
+with a beautiful animated transition.
+
+---
+
+# 22. MEASUREMENT SYSTEM
+
+Support:
+
+* Pixels
+* Millimetres
+* Centimetres
+* Inches
+* Points
+
+Users should be able to enter exact physical dimensions.
+
+Example:
+
+Width: 80 mm
+
+Height: 45 mm
+
+Show rulers and guides.
+
+---
+
+# 23. LAYERS PANEL
+
+Create a beautiful layer/object system.
+
+Users should be able to:
+
+* Rename
+* Hide
+* Lock
+* Reorder
+* Group
+* Ungroup
+* Duplicate
+* Delete
+
+Use subtle animations when objects move.
+
+---
+
+# 24. VECTOR OPERATIONS
+
+Implement working vector operations:
+
+* Union
+* Difference
+* Intersection
+* Exclusion
+* Combine
+* Break apart
+* Convert to path
+* Offset where practical
+
+These should work on actual SVG paths.
+
+---
+
+# 25. TEXT SYSTEM
+
+Implement:
+
+* Font selection
+* Font weight
+* Font size
+* Letter spacing
+* Line height
+* Alignment
+* Text color
+* Text along path
+* Convert text to path where possible
+
+Make typography controls feel premium and easy to use.
+
+---
+
+# 26. IMPORT / EXPORT
+
+Support:
+
+### Import
+
+* SVG
+* PNG
+* JPG
+* PDF where practical
+
+### Export
+
+* SVG
+* PNG
+* PDF where practical
+* Embroidery formats through the embroidery engine
+
+Provide export presets.
+
+---
+
+# 27. QUALITY CHECKER
+
+Before exporting, provide an intelligent quality check.
+
+Example:
+
+### Design Check
+
+✓ Vector paths clean
+
+✓ No overlapping objects
+
+⚠ Small text may be difficult to embroider
+
+⚠ High stitch density in selected area
+
+✓ Dimensions within production area
+
+Give users actionable suggestions.
+
+---
+
+# 28. ONBOARDING
+
+When a new user opens the app, do not overwhelm them.
+
+Provide:
+
+**Create something extraordinary.**
+
+Actions:
+
+* New Design
+
+✨ Generate with AI
+
+🖼 Import Artwork
+
+🧵 Digitize for Embroidery
+
+Use a beautiful animated empty state.
+
+---
+
+# 29. MICRO-INTERACTIONS
+
+Implement subtle interactions everywhere.
+
+Examples:
+
+* Button hover
+* Icon hover
+* Active states
+* Selection states
+* Tooltips
+* Context menus
+* Dropdowns
+* Sliders
+* Toggles
+* Color pickers
+* Input focus
+* Toast notifications
+
+The application should feel responsive and alive.
+
+---
+
+# 30. CURSOR EXPERIENCE
+
+Different tools can have contextual cursors.
+
+Examples:
+
+Pen tool:
+
+Precise pen cursor.
+
+Zoom:
+
+Magnifying cursor.
+
+Pan:
+
+Grab cursor.
+
+Eyedropper:
+
+Color-picker cursor.
+
+Keep them subtle and professional.
+
+---
+
+# 31. PERFORMANCE
+
+Performance is critical.
+
+The editor should feel instantaneous.
+
+Optimize:
+
+* Rendering
+* State updates
+* Canvas interactions
+* SVG manipulation
+* Animations
+* Large documents
+
+Avoid unnecessary React re-renders.
+
+Use GPU acceleration where appropriate.
+
+Keep animations at a smooth frame rate.
+
+---
+
+# 32. RESPONSIVE BEHAVIOR
+
+Primary target:
+
+**Desktop web application**
+
+Support large desktop monitors and laptop screens.
+
+For smaller screens, intelligently collapse:
+
+* Properties
+* Layers
+* AI
+* Toolbars
+
+Do NOT try to force the full desktop interface onto mobile.
+
+---
+
+# 33. ACCESSIBILITY
+
+Maintain:
+
+* Keyboard navigation
+* Clear focus states
+* Good contrast
+* Tooltips
+* ARIA labels where appropriate
+* Keyboard shortcuts
+
+Professional software should remain accessible.
+
+---
+
+# 34. DESIGN SYSTEM
+
+Create a reusable design system.
+
+Define:
+
+* Colors
+* Spacing
+* Border radius
+* Shadows
+* Typography
+* Buttons
+* Inputs
+* Cards
+* Tooltips
+* Modals
+* Panels
+* Menus
+* Icons
+
+Do not create inconsistent UI components.
+
+Everything should feel like one cohesive product.
+
+---
+
+# 35. VISUAL QUALITY STANDARD
+
+Before considering the application finished, inspect every screen and ask:
+
+Does this look like a generic SaaS application?
+
+If yes:
+
+**REDESIGN IT.**
+
+Does this look like a template?
+
+If yes:
+
+**REDESIGN IT.**
+
+Does this look like something made with default Tailwind components?
+
+If yes:
+
+**REDESIGN IT.**
+
+Does the animation feel cheap?
+
+If yes:
+
+**REDESIGN IT.**
+
+Does the interface feel cluttered?
+
+If yes:
+
+**SIMPLIFY IT.**
+
+The goal is not to maximize the number of UI elements.
+
+The goal is to create a feeling of:
+
+**precision + beauty + intelligence + speed.**
+
+---
+
+# 36. AVOID THESE DESIGN MISTAKES
+
+DO NOT:
+
+* Use generic gradients everywhere
+* Overuse neon
+* Make every element glow
+* Use excessive glassmorphism
+* Use huge text inside the editor
+* Make everything rounded like a consumer mobile app
+* Use random animations
+* Use cartoonish effects
+* Use excessive shadows
+* Make the interface visually noisy
+* Create fake functionality
+* Use placeholder-looking components
+* Make it look like a dashboard
+
+The product must feel like **professional creative software**.
+
+---
+
+# 37. BRAND FEEL
+
+The product should have its own premium identity.
+
+Create:
+
+* A sophisticated wordmark/logo placeholder
+* Custom accent treatment
+* Custom icon language
+* Unique AI visual language
+* Unique embroidery visualization
+* Unique transitions
+
+Do not simply copy Figma or Linear.
+
+Take inspiration from their level of polish, not their exact designs.
+
+---
+
+# 38. MVP PRIORITY
+
+Build the following first and make them excellent:
+
+### Priority 1
+
+* Application shell
+* Canvas
+* Dot grid
+* Selection
+* Shapes
+* Move
+* Resize
+* Rotate
+* Zoom
+* Pan
+* Layers
+* Properties
+
+### Priority 2
+
+* Pen tool
+* Nodes
+* Paths
+* Boolean operations
+* Text
+* Colors
+* Gradients
+* Alignment
+* Snapping
+
+### Priority 3
+
+* AI interface
+* AI vectorization architecture
+* AI image generation architecture
+* AI editing commands
+
+### Priority 4
+
+* Embroidery workspace
+* Embroidery data model
+* Stitch visualization
+* Export architecture
+
+### Priority 5
+
+* Product mockups
+* Collaboration
+* Version history
+* Advanced exports
+
+---
+
+# 39. DEMO DATA
+
+Create polished demo content so the application does not open looking empty.
+
+Include example designs such as:
+
+* Premium logo
+* Apparel graphic
+* Abstract vector
+* Embroidery logo
+* Product strap design
+
+The demo content should showcase the capabilities of the application.
+
+---
+
+# 40. FINAL EXPERIENCE
+
+When someone opens the application, they should immediately feel:
+
+> **“This isn't another design tool.”**
+
+It should feel like the future of creative software.
+
+The application should combine:
+
+**Professional vector editing**
+
+*
+
+**AI**
+
+*
+
+**Embroidery**
+
+*
+
+**Product visualization**
+
+*
+
+**Manufacturing**
+
+*
+
+**Beautiful motion**
+
+*
+
+**Exceptional UX**
+
+into one cohesive product.
+
+The final product should feel like something that could realistically compete with major creative software companies.
+
+---
+
+# 41. IMPLEMENTATION INSTRUCTIONS
+
+Start by building the actual working application.
+
+Do not spend the entire task creating a marketing page.
+
+Build the editor first.
+
+Create the folder/component architecture before implementing complex features.
+
+Make the core vector editor functional.
+
+Then layer AI, embroidery, and advanced features on top.
+
+After implementation:
+
+1. Run the application.
+2. Inspect every major screen.
+3. Fix visual inconsistencies.
+4. Fix broken interactions.
+5. Remove placeholder-looking UI.
+6. Improve animations.
+7. Improve spacing.
+8. Improve typography.
+9. Improve responsiveness.
+10. Ensure the application feels cohesive.
+
+Iterate on the UI until it looks genuinely premium.
+
+The final result should look like a **world-class professional creative application**, not a student project or a generated template.
+
+Build it with the mindset that **the visual experience itself is one of the core features of the product.**
