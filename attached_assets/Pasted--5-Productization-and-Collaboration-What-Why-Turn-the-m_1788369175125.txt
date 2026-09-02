@@ -1,0 +1,40 @@
+#5 - Productization and Collaboration
+
+What & Why
+
+Turn the mature editor into a complete creative platform with product previews, durable projects, collaboration, and release-quality performance. This milestone comes last because it relies on stable document, asset, AI, and embroidery models.
+
+Done looks like
+
+Users can switch smoothly between design and realistic product preview modes
+Designs can be positioned and scaled on supported apparel, accessories, packaging, and sticker scenes
+Signed-in users can create, rename, organize, open, duplicate, and recover cloud projects
+Version history records meaningful document checkpoints and supports safe restoration
+Sharing and collaboration provide clear permissions and conflict-safe updates
+Large documents remain responsive through rendering and state optimizations
+Import/export behavior, accessibility, responsive layouts, onboarding, and empty states receive a final cohesive quality pass
+Out of scope
+
+Full ecommerce storefront and fulfillment
+Manufacturing vendor integrations
+Native desktop or mobile applications
+Unlimited enterprise administration features
+Steps
+
+Product preview engine -- Add supported mockup scenes, artwork placement, transform controls, realistic blending, and animated transitions between design and preview.
+Accounts and cloud projects -- Add managed authentication and persistent project metadata, documents, thumbnails, and project-management flows.
+Version history -- Store meaningful checkpoints, expose comparisons and restore, and preserve compatibility as document schemas evolve.
+Sharing and collaboration -- Add permission-aware sharing, presence and update synchronization, conflict handling, and clear offline/reconnect states.
+Performance hardening -- Profile large documents, reduce unnecessary rendering and state propagation, virtualize heavy panels where useful, and keep interaction feedback smooth.
+Release-quality pass -- Refine onboarding, responsive collapse behavior, accessibility, keyboard coverage, error recovery, export trust labels, and visual consistency across every mode.
+Relevant files
+
+artifacts/vector-studio/src/App.tsx
+artifacts/vector-studio/src/index.css
+artifacts/vector-studio/package.json
+lib/api-spec/openapi.yaml
+artifacts/api-server/src/app.ts
+lib/db/src/index.ts
+Dependencies
+Embroidery workspace
+AI creative workflows
