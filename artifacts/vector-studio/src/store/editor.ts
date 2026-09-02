@@ -106,8 +106,13 @@ export const useEditorStore = () => editorStore.useStore((state) => state);
 
 editorStore.subscribe(() => {
   const { objects, projectName } = editorStore.get();
-  localStorage.setItem('vector-studio-doc', JSON.stringify(objects));
-  localStorage.setItem('vector-studio-name', projectName);
+  try {
+    localStorage.setItem('vector-studio-doc', JSON.stringify(objects));
+    localStorage.setItem('vector-studio-name', projectName);
+  } catch {
+    // Large embedded raster assets can exceed browser storage. Keep the live
+    // document and history usable even when local recovery cannot be refreshed.
+  }
 });
 
 // Actions

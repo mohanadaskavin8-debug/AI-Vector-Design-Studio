@@ -37,11 +37,13 @@ A desktop-first browser vector editor with a polished SVG workspace and extensib
 - Document geometry stays in CSS pixels; the precision UI converts px, mm, cm, in, and pt only at the input/display boundary.
 - Boolean geometry is deliberately limited to exact operations on two unrotated rectangles. Unsupported selections report a limitation instead of approximating a result.
 - AI and embroidery surfaces must identify preview or unavailable capabilities honestly until their dedicated milestones provide real engines.
+- AI image generation uses OpenAI through Replit AI Integrations. Results and deterministic edits remain staged until Apply; the provider route is same-origin, session-capability protected, and rate limited.
+- Raster vectorization is explicitly a deterministic block-based editable-shape approximation, not model-backed contour tracing.
 - The editor uses a small external store so pointer-driven canvas updates do not force unrelated interface components to rerender.
 
 ## Product
 
-Users can create, select, move, resize, rotate, style, group, organize, import, and export common vector objects. Advanced tools include Bezier and smoothed freehand paths with editable nodes, guides and snapping, alignment and distribution, professional text controls, supported boolean geometry, raster image layers, export presets, and actionable preflight checks.
+Users can create, select, move, resize, rotate, style, group, organize, import, and export common vector objects. Advanced tools include Bezier and smoothed freehand paths with editable nodes, guides and snapping, alignment and distribution, professional text controls, supported boolean geometry, raster image layers, export presets, actionable preflight checks, provider-backed image generation, staged vectorization, and reversible selection edits.
 
 ## User preferences
 

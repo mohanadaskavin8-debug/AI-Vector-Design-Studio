@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: ai
+    description: Provider-backed creative operations
 paths:
   /healthz:
     get:
@@ -24,8 +26,89 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /ai/images:
+    post:
+      operationId: generateAiImage
+      tags: [ai]
+      summary: Generate an image for review
+      description: Generates one raster image through Replit AI Integrations. The client keeps it separate until the user applies it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateImageRequest"
+      responses:
+        "200":
+          description: Generated image
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateImageResponse"
+        "400":
+          description: Invalid prompt
+        "401":
+          description: Missing or expired session capability
+        "429":
+          description: Hourly generation limit reached
+        "503":
+          description: Provider unavailable
+  /ai/capabilities:
+    get:
+      operationId: getAiCapabilities
+      tags: [ai]
+      summary: Create a same-origin AI generation session
+      responses:
+        "200":
+          description: Session-scoped generation capability
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiCapabilities"
+        "403":
+          description: Cross-origin access denied
 components:
   schemas:
+    AiCapabilities:
+      type: object
+      properties:
+        capabilityToken:
+          type: string
+        provider:
+          type: string
+        model:
+          type: string
+        limits:
+          type: object
+          properties:
+            generationsPerHour:
+              type: number
+          required: [generationsPerHour]
+      required: [capabilityToken, provider, model, limits]
+    GenerateImageRequest:
+      type: object
+      properties:
+        prompt:
+          type: string
+          minLength: 3
+          maxLength: 1500
+        size:
+          type: string
+          enum: [1024x1024, 1536x1024, 1024x1536]
+          default: 1024x1024
+      required: [prompt]
+    GenerateImageResponse:
+      type: object
+      properties:
+        image:
+          type: string
+        provider:
+          type: string
+        model:
+          type: string
+        size:
+          type: string
+      required: [image, provider, model, size]
     HealthStatus:
       type: object
       properties:

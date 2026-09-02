@@ -4,6 +4,7 @@ import { Box, Wand2, Scissors, Eye, EyeOff, Lock, Unlock, Copy, Trash2, Group, U
 import { VectorObject } from '../../lib/types';
 import { performBooleanOp, isAxisAlignedRect } from '../../lib/booleanOps';
 import { pxToUnit, unitToPx } from '../../lib/units';
+import AIWorkspace from './AIWorkspace';
 
 function PrecisionPanel() {
   const { unit, snapToGrid, snapToObjects, gridSize, guides } = useEditorStore();
@@ -455,58 +456,6 @@ function LayersTab() {
   );
 }
 
-function AITab() {
-  const [isProcessing, setIsProcessing] = useState(false);
-  const { objects, selection } = useEditorStore();
-
-  const handleAction = (label: string) => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      setIsProcessing(false);
-      // Local deterministic actions stay reversible in editor history.
-      if (label === 'Simplify Styles' && selection.length > 0) {
-        updateSelectedObjects({ stroke: 'none', opacity: 1 });
-      } else if (label === 'Recolor to Violet' && selection.length > 0) {
-        updateSelectedObjects({ fill: '#8B5CF6' });
-      }
-    }, 800);
-  };
-
-  return (
-    <div className="p-4 space-y-4">
-      <div className="bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 rounded-xl p-4 relative overflow-hidden">
-        <Wand2 className="text-primary mb-2" size={24} />
-        <h3 className="font-semibold text-sm mb-1">AI Workspace</h3>
-        <p className="text-xs text-muted-foreground mb-4 relative z-10">
-          Transform selections deterministically or request generative edits.
-        </p>
-        
-        <div className="space-y-2 relative z-10">
-          <button 
-            onClick={() => handleAction('Simplify Styles')}
-            disabled={selection.length === 0 || isProcessing}
-            className="w-full text-left px-3 py-2 text-sm bg-black/40 hover:bg-black/60 rounded border border-white/5 disabled:opacity-50 transition-colors"
-          >
-            {isProcessing ? 'Processing...' : 'Simplify Styles'}
-          </button>
-          <button 
-            onClick={() => handleAction('Recolor to Violet')}
-            disabled={selection.length === 0 || isProcessing}
-            className="w-full text-left px-3 py-2 text-sm bg-black/40 hover:bg-black/60 rounded border border-white/5 disabled:opacity-50 transition-colors"
-          >
-            {isProcessing ? 'Processing...' : 'Recolor to Violet'}
-          </button>
-        </div>
-      </div>
-      
-      <div className="p-3 border border-dashed border-white/10 rounded-xl bg-black/20">
-         <p className="text-xs text-muted-foreground text-center">
-            Generative functionality (e.g. "Generate icon set") requires an active LLM provider configuration.
-         </p>
-      </div>
-    </div>
-  );
-}
 
 function EmbroideryTab() {
   const { objects, selection } = useEditorStore();
@@ -585,7 +534,7 @@ export default function RightSidebar() {
       <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
         {activeTab === 'design' && <PropertiesTab />}
         {activeTab === 'layers' && <LayersTab />}
-        {activeTab === 'ai' && <AITab />}
+        {activeTab === 'ai' && <AIWorkspace />}
         {activeTab === 'embroidery' && <EmbroideryTab />}
       </div>
     </div>
