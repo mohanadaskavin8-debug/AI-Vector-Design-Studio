@@ -41,8 +41,15 @@ export default function CollaborationDrawer() {
   }), [user, workspaceMode, selection.length, cloud.permission]);
   useEffect(() => {
     if (!projectId) return;
-    const beat = () => heartbeat.mutate({ projectId, data: { clientId, state: presenceState } });
-    beat(); const timer = setInterval(beat, 12000); return () => clearInterval(timer);
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const beat = () => heartbeat.mutate({ projectId, data: { clientId, state: presenceState } }, {
+      // Access revoked or project gone: stop heartbeating instead of 403-spamming.
+      onError: error => {
+        const status = (error as { status?: number } | null)?.status;
+        if (status === 403 || status === 404) clearInterval(timer);
+      },
+    });
+    beat(); timer = setInterval(beat, 12000); return () => clearInterval(timer);
   }, [projectId, presenceState]); // mutation object is intentionally excluded: it is not stable
   useEffect(() => {
     if (!cloud.collaborationOpen) return;

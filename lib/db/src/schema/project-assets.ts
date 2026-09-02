@@ -1,4 +1,4 @@
-import { bigint, index, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, index, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { projectsTable } from "./projects";
@@ -13,6 +13,9 @@ export const projectAssetsTable = pgTable("project_assets", {
   name: text("name").notNull(),
   contentType: text("content_type").notNull(),
   size: bigint("size", { mode: "number" }).notNull(),
+  // Server-verified upload gate: set true only after the confirm endpoint has
+  // checked the real uploaded bytes. Unconfirmed assets are never served.
+  confirmed: boolean("confirmed").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [index("project_assets_project_idx").on(table.projectId)]);
 export const insertProjectAssetSchema = createInsertSchema(projectAssetsTable).omit({ id: true, createdAt: true });

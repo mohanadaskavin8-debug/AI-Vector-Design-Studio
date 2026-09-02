@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { createProject, createProjectVersion, getGetProjectQueryKey, getProject, requestObjectUploadUrl, updateProject, useGetProject } from '@workspace/api-client-react';
+import { confirmObjectUpload, createProject, createProjectVersion, getGetProjectQueryKey, getProject, requestObjectUploadUrl, updateProject, useGetProject } from '@workspace/api-client-react';
 import { useLocation } from 'wouter';
 import { editorStore } from '../store/editor';
 import { embroideryStore } from '../store/embroidery';
@@ -34,6 +34,8 @@ async function uploadThumbnail(projectId: string, document: CloudDocumentV1) {
   const target = await requestObjectUploadUrl({ projectId, kind: 'thumbnail', name: 'thumbnail.svg', size: blob.size, contentType: blob.type });
   const response = await fetch(target.uploadURL, { method: 'PUT', headers: { 'Content-Type': blob.type }, body: blob });
   if (!response.ok) throw new Error('Thumbnail upload failed.');
+  // Assets are unserveable until the server has verified the uploaded bytes.
+  await confirmObjectUpload({ objectPath: target.objectPath });
   return target.objectPath;
 }
 
