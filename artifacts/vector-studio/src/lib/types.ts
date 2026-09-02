@@ -67,4 +67,5 @@ export interface DocumentState {
   snapToObjects: boolean;
   gridSize: number;
   unit: UnitType;
+  workspaceMode: 'design' | 'embroidery';
 }

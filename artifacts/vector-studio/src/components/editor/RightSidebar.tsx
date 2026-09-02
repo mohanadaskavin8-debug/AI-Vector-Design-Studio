@@ -5,6 +5,7 @@ import { VectorObject } from '../../lib/types';
 import { performBooleanOp, isAxisAlignedRect } from '../../lib/booleanOps';
 import { pxToUnit, unitToPx } from '../../lib/units';
 import AIWorkspace from './AIWorkspace';
+import EmbroideryPanel from './EmbroideryPanel';
 
 function PrecisionPanel() {
   const { unit, snapToGrid, snapToObjects, gridSize, guides } = useEditorStore();
@@ -457,53 +458,6 @@ function LayersTab() {
 }
 
 
-function EmbroideryTab() {
-  const { objects, selection } = useEditorStore();
-  const selectedObjs = objects.filter(o => selection.includes(o.id));
-  
-  const estimateStitches = () => {
-    if (selectedObjs.length === 0) return 0;
-    return Math.floor(selectedObjs.reduce((acc, obj) => acc + (obj.width * obj.height * 0.05), 0));
-  };
-
-  return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center gap-2 text-primary mb-2">
-        <Scissors size={20} />
-        <h3 className="font-semibold text-sm">Embroidery Mode</h3>
-      </div>
-      
-      <div className="bg-black/40 border border-white/5 p-4 rounded-xl space-y-3">
-        <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Selection</span>
-          <span>{selection.length} shape(s)</span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Est. Stitches</span>
-          <span className="font-mono text-primary font-medium">{estimateStitches().toLocaleString()}</span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Colors</span>
-          <span>{new Set(selectedObjs.map(o => o.fill).filter(f => f !== 'none')).size}</span>
-        </div>
-      </div>
-      
-      {selection.length > 0 ? (
-        <button className="w-full py-2 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 transition-colors font-medium shadow-[0_0_15px_rgba(139,92,246,0.2)]">
-          Preview Stitch Path
-        </button>
-      ) : (
-        <p className="text-xs text-center text-muted-foreground mt-4">Select shapes to preview</p>
-      )}
-
-      <div className="mt-4 p-3 border border-white/5 bg-black/20 rounded-xl">
-         <p className="text-xs text-muted-foreground text-center">
-            Preview estimates only. Production machine-file export is not included in this foundation.
-         </p>
-      </div>
-    </div>
-  );
-}
 
 export default function RightSidebar() {
   const [activeTab, setActiveTab] = useState<'design'|'layers'|'ai'|'embroidery'>('design');
@@ -521,7 +475,7 @@ export default function RightSidebar() {
         {tabs.map(tab => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => { setActiveTab(tab.id); editorStore.set({ workspaceMode: tab.id === "embroidery" ? "embroidery" : "design" }); }}
             className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
               activeTab === tab.id ? 'bg-primary/20 text-primary border border-primary/20 shadow-sm' : 'text-muted-foreground hover:bg-white/5 border border-transparent'
             }`}
@@ -535,7 +489,7 @@ export default function RightSidebar() {
         {activeTab === 'design' && <PropertiesTab />}
         {activeTab === 'layers' && <LayersTab />}
         {activeTab === 'ai' && <AIWorkspace />}
-        {activeTab === 'embroidery' && <EmbroideryTab />}
+        {activeTab === 'embroidery' && <EmbroideryPanel />}
       </div>
     </div>
   );

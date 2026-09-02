@@ -100,6 +100,7 @@ export const editorStore = createStore<DocumentState>({
   snapToObjects: true,
   gridSize: 10,
   unit: 'px',
+  workspaceMode: 'design',
 });
 
 export const useEditorStore = () => editorStore.useStore((state) => state);

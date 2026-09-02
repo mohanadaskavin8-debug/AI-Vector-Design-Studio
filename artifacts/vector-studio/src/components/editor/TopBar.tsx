@@ -12,7 +12,7 @@ const escapeXml = (value: string | undefined) => (value || '').replace(/[<>&"']/
 const isSafeImageSource = (value: string) => /^data:image\/(png|jpe?g|webp|gif);base64,/i.test(value);
 
 export default function TopBar() {
-  const { zoom, history, historyIndex, objects, artboard, projectName } = useEditorStore();
+  const { zoom, history, historyIndex, objects, artboard, projectName, workspaceMode } = useEditorStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [preflightOpen, setPreflightOpen] = useState(false);
@@ -288,23 +288,30 @@ export default function TopBar() {
       </div>
 
       <div className="flex items-center gap-2 bg-black/20 rounded-lg p-1 border border-white/5">
-        <button 
-          onClick={undo}
-          disabled={historyIndex <= 0}
-          className="p-1.5 rounded-md hover:bg-white/10 disabled:opacity-50 disabled:hover:bg-transparent transition-colors text-muted-foreground hover:text-foreground"
-        >
-          <Undo2 size={16} />
-        </button>
-        <button 
-          onClick={redo}
-          disabled={historyIndex >= history.length - 1}
-          className="p-1.5 rounded-md hover:bg-white/10 disabled:opacity-50 disabled:hover:bg-transparent transition-colors text-muted-foreground hover:text-foreground"
-        >
-          <Redo2 size={16} />
-        </button>
-        <div className="w-px h-4 bg-white/10 mx-1" />
-        <button 
+        {workspaceMode === 'design' && (
+          <>
+            <button
+              onClick={undo}
+              disabled={historyIndex <= 0}
+              aria-label="Undo design change"
+              className="p-1.5 rounded-md hover:bg-white/10 disabled:opacity-50 disabled:hover:bg-transparent transition-colors text-muted-foreground hover:text-foreground"
+            >
+              <Undo2 size={16} />
+            </button>
+            <button
+              onClick={redo}
+              disabled={historyIndex >= history.length - 1}
+              aria-label="Redo design change"
+              className="p-1.5 rounded-md hover:bg-white/10 disabled:opacity-50 disabled:hover:bg-transparent transition-colors text-muted-foreground hover:text-foreground"
+            >
+              <Redo2 size={16} />
+            </button>
+            <div className="w-px h-4 bg-white/10 mx-1" />
+          </>
+        )}
+        <button
           onClick={() => editorStore.set({ zoom: Math.max(0.1, zoom - 0.2) })}
+          aria-label="Zoom out"
           className="p-1.5 rounded-md hover:bg-white/10 transition-colors text-muted-foreground hover:text-foreground"
         >
           <ZoomOut size={16} />
@@ -312,8 +319,9 @@ export default function TopBar() {
         <span className="text-xs w-12 text-center font-mono select-none">
           {Math.round(zoom * 100)}%
         </span>
-        <button 
+        <button
           onClick={() => editorStore.set({ zoom: Math.min(5, zoom + 0.2) })}
+          aria-label="Zoom in"
           className="p-1.5 rounded-md hover:bg-white/10 transition-colors text-muted-foreground hover:text-foreground"
         >
           <ZoomIn size={16} />
@@ -325,62 +333,70 @@ export default function TopBar() {
         <input type="file" accept=".svg" ref={fileInputRef} onChange={handleImportSVG} className="hidden" />
         <input type="file" accept=".png,.jpg,.jpeg" ref={imageInputRef} onChange={handleImportImage} className="hidden" />
         
-        <button 
-          onClick={() => setPreflightOpen(!preflightOpen)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${getPreflightWarnings().length > 0 ? 'text-amber-500 hover:bg-amber-500/10' : 'text-emerald-500 hover:bg-emerald-500/10'}`}
-          title="Preflight Checks"
-        >
-          {getPreflightWarnings().length > 0 ? <AlertTriangle size={14} /> : <CheckCircle2 size={14} />}
-          Preflight
-        </button>
+        {workspaceMode === 'embroidery' ? (
+          <div className="flex items-center px-3 py-1.5 bg-primary/20 text-primary text-xs font-medium rounded-md border border-primary/30">
+             Stitch Plan Mode
+          </div>
+        ) : (
+          <>
+            <button
+              onClick={() => setPreflightOpen(!preflightOpen)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${getPreflightWarnings().length > 0 ? 'text-amber-500 hover:bg-amber-500/10' : 'text-emerald-500 hover:bg-emerald-500/10'}`}
+              title="Preflight Checks"
+            >
+              {getPreflightWarnings().length > 0 ? <AlertTriangle size={14} /> : <CheckCircle2 size={14} />}
+              Preflight
+            </button>
 
-        {preflightOpen && (
-           <div className="absolute top-10 right-32 w-72 bg-card border border-white/10 shadow-2xl rounded-xl p-3 z-50 animate-in fade-in slide-in-from-top-2">
-              <h4 className="text-xs font-bold uppercase text-muted-foreground mb-2">Export Warnings</h4>
-              {getPreflightWarnings().length > 0 ? (
-                 <ul className="space-y-2">
-                    {getPreflightWarnings().map((w, i) => (
-                       <li key={i} className="text-xs flex gap-2 items-start text-amber-500/90 bg-amber-500/10 p-2 rounded">
-                          <AlertTriangle size={12} className="shrink-0 mt-0.5" />
-                          <span>{w}</span>
-                       </li>
-                    ))}
-                 </ul>
-              ) : (
-                 <div className="text-xs flex gap-2 items-center text-emerald-500/90 bg-emerald-500/10 p-2 rounded">
-                    <CheckCircle2 size={14} />
-                    <span>No issues found by these checks. Review the downloaded output before production use.</span>
-                 </div>
-              )}
-           </div>
+            {preflightOpen && (
+               <div className="absolute top-10 right-32 w-72 bg-card border border-white/10 shadow-2xl rounded-xl p-3 z-50 animate-in fade-in slide-in-from-top-2">
+                  <h4 className="text-xs font-bold uppercase text-muted-foreground mb-2">Export Warnings</h4>
+                  {getPreflightWarnings().length > 0 ? (
+                     <ul className="space-y-2">
+                        {getPreflightWarnings().map((w, i) => (
+                           <li key={i} className="text-xs flex gap-2 items-start text-amber-500/90 bg-amber-500/10 p-2 rounded">
+                              <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+                              <span>{w}</span>
+                           </li>
+                        ))}
+                     </ul>
+                  ) : (
+                     <div className="text-xs flex gap-2 items-center text-emerald-500/90 bg-emerald-500/10 p-2 rounded">
+                        <CheckCircle2 size={14} />
+                        <span>No issues found by these checks. Review the downloaded output before production use.</span>
+                     </div>
+                  )}
+               </div>
+            )}
+
+            <div className="w-px h-4 bg-white/10 mx-1" />
+
+            <div className="group relative">
+               <button className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/10 rounded-md text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
+                 <Upload size={14} /> Import
+               </button>
+               <div className="absolute top-full right-0 mt-1 w-32 bg-card border border-white/10 rounded-md shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
+                  <button onClick={() => fileInputRef.current?.click()} className="w-full text-left px-3 py-2 text-xs hover:bg-white/10 text-muted-foreground hover:text-foreground">Import SVG</button>
+                  <button onClick={() => imageInputRef.current?.click()} className="w-full text-left px-3 py-2 text-xs hover:bg-white/10 text-muted-foreground hover:text-foreground">Import Image</button>
+               </div>
+            </div>
+
+            <div className="group relative">
+               <button className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/10 rounded-md text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
+                 <Download size={14} /> Export
+               </button>
+                <div className="absolute top-full right-0 mt-1 w-56 bg-card border border-white/10 rounded-md shadow-xl p-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
+                   <label className="flex items-center justify-between px-2 py-1 text-xs text-muted-foreground">PNG scale
+                     <select value={exportScale} onChange={event => setExportScale(Number(event.target.value))} className="bg-black/40 border border-white/10 rounded px-1 py-0.5 text-foreground"><option value={1}>1×</option><option value={2}>2×</option><option value={3}>3×</option></select>
+                   </label>
+                   <label className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground"><input type="checkbox" checked={transparentBackground} onChange={event => setTransparentBackground(event.target.checked)} />Transparent background</label>
+                   <div className="h-px bg-white/10 my-1" />
+                   <button onClick={handleExportSVG} className="w-full text-left px-2 py-2 text-xs hover:bg-white/10 rounded text-muted-foreground hover:text-foreground">Export editable SVG</button>
+                   <button onClick={handleExportPNG} className="w-full text-left px-2 py-2 text-xs hover:bg-white/10 rounded text-muted-foreground hover:text-foreground">Export PNG</button>
+               </div>
+            </div>
+          </>
         )}
-
-        <div className="w-px h-4 bg-white/10 mx-1" />
-        
-        <div className="group relative">
-           <button className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/10 rounded-md text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
-             <Upload size={14} /> Import
-           </button>
-           <div className="absolute top-full right-0 mt-1 w-32 bg-card border border-white/10 rounded-md shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
-              <button onClick={() => fileInputRef.current?.click()} className="w-full text-left px-3 py-2 text-xs hover:bg-white/10 text-muted-foreground hover:text-foreground">Import SVG</button>
-              <button onClick={() => imageInputRef.current?.click()} className="w-full text-left px-3 py-2 text-xs hover:bg-white/10 text-muted-foreground hover:text-foreground">Import Image</button>
-           </div>
-        </div>
-        
-        <div className="group relative">
-           <button className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/10 rounded-md text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
-             <Download size={14} /> Export
-           </button>
-            <div className="absolute top-full right-0 mt-1 w-56 bg-card border border-white/10 rounded-md shadow-xl p-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
-               <label className="flex items-center justify-between px-2 py-1 text-xs text-muted-foreground">PNG scale
-                 <select value={exportScale} onChange={event => setExportScale(Number(event.target.value))} className="bg-black/40 border border-white/10 rounded px-1 py-0.5 text-foreground"><option value={1}>1×</option><option value={2}>2×</option><option value={3}>3×</option></select>
-               </label>
-               <label className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground"><input type="checkbox" checked={transparentBackground} onChange={event => setTransparentBackground(event.target.checked)} />Transparent background</label>
-               <div className="h-px bg-white/10 my-1" />
-               <button onClick={handleExportSVG} className="w-full text-left px-2 py-2 text-xs hover:bg-white/10 rounded text-muted-foreground hover:text-foreground">Export editable SVG</button>
-               <button onClick={handleExportPNG} className="w-full text-left px-2 py-2 text-xs hover:bg-white/10 rounded text-muted-foreground hover:text-foreground">Export PNG</button>
-           </div>
-        </div>
       </div>
     </div>
   );

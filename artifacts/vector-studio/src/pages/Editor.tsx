@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useEditorStore, editorStore, deleteSelection, duplicateSelection, groupSelection, ungroupSelection, undo, redo } from '../store/editor';
 import Workspace from '../components/editor/Workspace';
+import EmbroideryWorkspace from '../components/editor/EmbroideryWorkspace';
 import Toolbar from '../components/editor/Toolbar';
 import TopBar from '../components/editor/TopBar';
 import RightSidebar from '../components/editor/RightSidebar';
@@ -8,10 +9,11 @@ import { Command } from 'lucide-react';
 
 export default function Editor() {
   const [cmdOpen, setCmdOpen] = useState(false);
-  const { selection } = useEditorStore();
+  const { selection, workspaceMode } = useEditorStore();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (workspaceMode === 'embroidery') return;
       // Command Palette
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
@@ -46,7 +48,7 @@ export default function Editor() {
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selection]);
+  }, [selection, workspaceMode]);
 
   const commands = [
     { label: 'Undo last change', shortcut: '⌘ Z', action: undo },
@@ -61,8 +63,8 @@ export default function Editor() {
     <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-background text-foreground select-none flex flex-col">
       <TopBar />
       <div className="flex-1 relative w-full h-full">
-        <Workspace />
-        <Toolbar />
+        {workspaceMode === 'embroidery' ? <EmbroideryWorkspace /> : <Workspace />}
+        {workspaceMode !== 'embroidery' && <Toolbar />}
         <RightSidebar />
       </div>
       
