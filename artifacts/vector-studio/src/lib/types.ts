@@ -60,6 +60,7 @@ export interface DocumentState {
   historyIndex: number;
   projectName: string;
   saveStatus: string;
+  storageWarning: string | null;
   
   // Added features
   guides: { id: string, axis: 'x' | 'y', pos: number }[];
@@ -67,5 +68,21 @@ export interface DocumentState {
   snapToObjects: boolean;
   gridSize: number;
   unit: UnitType;
-  workspaceMode: 'design' | 'embroidery';
+  workspaceMode: 'design' | 'embroidery' | 'preview';
+  previewState: PreviewState;
+}
+
+export interface PreviewState {
+  scene: 'apparel' | 'accessories' | 'packaging' | 'stickers';
+  preset: string;
+  position: { x: number; y: number };
+  scale: number;
+  rotation: number;
+  opacity: number;
+  blendMode: 'normal' | 'multiply' | 'screen' | 'overlay' | 'hard-light' | 'color-burn';
+  printFinish: 'matte' | 'glossy' | 'metallic' | 'embossed';
+  shadowStrength: number;
+  textureStrength: number;
+  surfaceColor: string;
+  quality: 'draft' | 'high';
 }

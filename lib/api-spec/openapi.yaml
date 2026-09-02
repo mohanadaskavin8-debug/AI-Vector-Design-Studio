@@ -1,119 +1,448 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Vector Studio API
 servers:
   - url: /api
-    description: Base API path
 tags:
-  - name: health
-    description: Health operations
-  - name: ai
-    description: Provider-backed creative operations
+  - { name: health }
+  - { name: ai }
+  - { name: projects }
+  - { name: collaboration }
+  - { name: storage }
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
-      summary: Health check
-      description: Returns server health status
       responses:
-        "200":
-          description: Healthy
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HealthStatus"
+        "200": { description: Healthy, content: { application/json: { schema: { $ref: "#/components/schemas/HealthStatus" } } } }
   /ai/images:
     post:
       operationId: generateAiImage
       tags: [ai]
-      summary: Generate an image for review
-      description: Generates one raster image through Replit AI Integrations. The client keeps it separate until the user applies it.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/GenerateImageRequest"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/GenerateImageRequest" } } } }
       responses:
-        "200":
-          description: Generated image
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GenerateImageResponse"
-        "400":
-          description: Invalid prompt
-        "401":
-          description: Missing or expired session capability
-        "429":
-          description: Hourly generation limit reached
-        "503":
-          description: Provider unavailable
+        "200": { description: Generated image, content: { application/json: { schema: { $ref: "#/components/schemas/GenerateImageResponse" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { description: Rate limited }
+        "503": { description: Provider unavailable }
   /ai/capabilities:
     get:
       operationId: getAiCapabilities
       tags: [ai]
-      summary: Create a same-origin AI generation session
       responses:
-        "200":
-          description: Session-scoped generation capability
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AiCapabilities"
-        "403":
-          description: Cross-origin access denied
+        "200": { description: Capability, content: { application/json: { schema: { $ref: "#/components/schemas/AiCapabilities" } } } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /projects:
+    get:
+      operationId: listProjects
+      tags: [projects]
+      parameters:
+        - { in: query, name: archived, schema: { type: boolean, default: false } }
+      responses:
+        "200": { description: Projects, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Project" } } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      operationId: createProject
+      tags: [projects]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ProjectInput" } } } }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Project" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /projects/{projectId}:
+    parameters:
+      - { $ref: "#/components/parameters/ProjectId" }
+    get:
+      operationId: getProject
+      tags: [projects]
+      responses:
+        "200": { description: Project, content: { application/json: { schema: { $ref: "#/components/schemas/Project" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      operationId: updateProject
+      tags: [projects]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ProjectUpdate" } } } }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/Project" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Revision conflict, content: { application/json: { schema: { $ref: "#/components/schemas/Conflict" } } } }
+    delete:
+      operationId: deleteProject
+      tags: [projects]
+      responses:
+        "204": { description: Deleted }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /projects/{projectId}/archive:
+    patch:
+      operationId: archiveProject
+      tags: [projects]
+      parameters: [ { $ref: "#/components/parameters/ProjectId" } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ProjectArchive" } } } }
+      responses:
+        "200": { description: Archived, content: { application/json: { schema: { $ref: "#/components/schemas/Project" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /projects/{projectId}/duplicate:
+    post:
+      operationId: duplicateProject
+      tags: [projects]
+      parameters: [ { $ref: "#/components/parameters/ProjectId" } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ProjectDuplicate" } } } }
+      responses:
+        "201": { description: Duplicate, content: { application/json: { schema: { $ref: "#/components/schemas/Project" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /projects/{projectId}/versions:
+    get:
+      operationId: listProjectVersions
+      tags: [projects]
+      parameters: [ { $ref: "#/components/parameters/ProjectId" } ]
+      responses:
+        "200": { description: Versions, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ProjectVersion" } } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: createProjectVersion
+      tags: [projects]
+      parameters: [ { $ref: "#/components/parameters/ProjectId" } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/VersionInput" } } } }
+      responses:
+        "201": { description: Version, content: { application/json: { schema: { $ref: "#/components/schemas/ProjectVersion" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Revision conflict, content: { application/json: { schema: { $ref: "#/components/schemas/Conflict" } } } }
+  /projects/{projectId}/versions/{versionId}/restore:
+    post:
+      operationId: restoreProjectVersion
+      tags: [projects]
+      parameters:
+        - { $ref: "#/components/parameters/ProjectId" }
+        - { $ref: "#/components/parameters/VersionId" }
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/VersionRestore" } } } }
+      responses:
+        "200": { description: Restored, content: { application/json: { schema: { $ref: "#/components/schemas/Project" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Revision conflict, content: { application/json: { schema: { $ref: "#/components/schemas/Conflict" } } } }
+  /projects/{projectId}/share-links:
+    get:
+      operationId: listProjectShareLinks
+      tags: [collaboration]
+      parameters: [ { $ref: "#/components/parameters/ProjectId" } ]
+      responses:
+        "200": { description: Links, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ShareLink" } } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: createProjectShareLink
+      tags: [collaboration]
+      parameters: [ { $ref: "#/components/parameters/ProjectId" } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ShareLinkInput" } } } }
+      responses:
+        "201": { description: Link, content: { application/json: { schema: { $ref: "#/components/schemas/ShareLinkCreated" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /projects/{projectId}/share-links/{shareLinkId}:
+    delete:
+      operationId: revokeProjectShareLink
+      tags: [collaboration]
+      parameters:
+        - { $ref: "#/components/parameters/ProjectId" }
+        - { $ref: "#/components/parameters/ShareLinkId" }
+      responses:
+        "204": { description: Revoked }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /share-links/accept:
+    post:
+      operationId: acceptProjectShareLink
+      tags: [collaboration]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ShareTokenInput" } } } }
+      responses:
+        "200": { description: Accepted, content: { application/json: { schema: { $ref: "#/components/schemas/Project" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/ConflictResponse" }
+  /projects/{projectId}/presence:
+    get:
+      operationId: listProjectPresence
+      tags: [collaboration]
+      parameters: [ { $ref: "#/components/parameters/ProjectId" } ]
+      responses:
+        "200": { description: Presence, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Presence" } } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: heartbeatProjectPresence
+      tags: [collaboration]
+      parameters: [ { $ref: "#/components/parameters/ProjectId" } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/PresenceInput" } } } }
+      responses:
+        "200": { description: Presence, content: { application/json: { schema: { $ref: "#/components/schemas/Presence" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /storage/uploads/request-url:
+    post:
+      operationId: requestObjectUploadUrl
+      tags: [storage]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AssetUploadInput" } } } }
+      responses:
+        "200": { description: Upload URL, content: { application/json: { schema: { $ref: "#/components/schemas/AssetUpload" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /storage/uploads/confirm:
+    post:
+      operationId: confirmObjectUpload
+      tags: [storage]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/AssetConfirmInput" } } } }
+      responses:
+        "200": { description: Confirmed asset, content: { application/json: { schema: { $ref: "#/components/schemas/AssetConfirmation" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /storage/objects/{objectPath}:
+    get:
+      operationId: serveProjectObject
+      tags: [storage]
+      parameters:
+        - { in: path, name: objectPath, required: true, schema: { type: string, minLength: 1, maxLength: 500 } }
+      responses:
+        "200": { description: Object bytes, content: { application/octet-stream: { schema: { type: string, format: binary } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
 components:
+  parameters:
+    ProjectId: { in: path, name: projectId, required: true, schema: { type: string, pattern: "^[0-9a-fA-F-]{36}$" } }
+    VersionId: { in: path, name: versionId, required: true, schema: { type: string, pattern: "^[0-9a-fA-F-]{36}$" } }
+    ShareLinkId: { in: path, name: shareLinkId, required: true, schema: { type: string, pattern: "^[0-9a-fA-F-]{36}$" } }
+  responses:
+    BadRequest: { description: Bad request, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    Unauthorized: { description: Unauthorized, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    Forbidden: { description: Forbidden, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    NotFound: { description: Not found, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    ConflictResponse: { description: Conflict, content: { application/json: { schema: { $ref: "#/components/schemas/Conflict" } } } }
   schemas:
+    Error:
+      type: object
+      required: [error]
+      properties: { error: { type: string } }
+    Conflict:
+      type: object
+      required: [error, currentRevision]
+      properties:
+        error: { type: string }
+        currentRevision: { type: number, minimum: 0 }
+    Permission: { type: string, enum: [view, edit] }
+    Project:
+      type: object
+      required: [id, ownerId, name, folder, archived, document, schemaVersion, revision, thumbnailObjectPath, permission, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        ownerId: { type: string }
+        name: { type: string }
+        folder: { type: [string, "null"] }
+        archived: { type: boolean }
+        document: {}
+        schemaVersion: { type: number }
+        revision: { type: number }
+        thumbnailObjectPath: { type: [string, "null"] }
+        permission: { type: string, enum: [owner, view, edit] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ProjectInput:
+      type: object
+      additionalProperties: false
+      required: [name, document, schemaVersion]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        folder: { type: [string, "null"], maxLength: 240 }
+        document: {}
+        schemaVersion: { type: number, minimum: 1, maximum: 10000 }
+    ProjectUpdate:
+      type: object
+      additionalProperties: false
+      required: [expectedRevision]
+      properties:
+        expectedRevision: { type: number, minimum: 0 }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        folder: { type: [string, "null"], maxLength: 240 }
+        document: {}
+        schemaVersion: { type: number, minimum: 1, maximum: 10000 }
+        thumbnailObjectPath: { type: [string, "null"], maxLength: 500 }
+    ProjectArchive:
+      type: object
+      additionalProperties: false
+      required: [archived]
+      properties: { archived: { type: boolean } }
+    ProjectDuplicate:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        folder: { type: [string, "null"], maxLength: 240 }
+    ProjectVersion:
+      type: object
+      required: [id, projectId, createdBy, label, document, schemaVersion, revision, createdAt]
+      properties:
+        id: { type: string }
+        projectId: { type: string }
+        createdBy: { type: string }
+        label: { type: [string, "null"] }
+        document: {}
+        schemaVersion: { type: number }
+        revision: { type: number }
+        createdAt: { type: string, format: date-time }
+    VersionInput:
+      type: object
+      additionalProperties: false
+      properties:
+        label: { type: [string, "null"], maxLength: 120 }
+        expectedRevision: { type: number, minimum: 0 }
+    VersionRestore:
+      type: object
+      additionalProperties: false
+      required: [expectedRevision]
+      properties: { expectedRevision: { type: number, minimum: 0 } }
+    ShareLink:
+      type: object
+      required: [id, projectId, permission, expiresAt, revokedAt, createdAt]
+      properties:
+        id: { type: string }
+        projectId: { type: string }
+        permission: { $ref: "#/components/schemas/Permission" }
+        expiresAt: { type: string, format: date-time }
+        revokedAt: { type: [string, "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+    ShareLinkCreated:
+      allOf:
+        - { $ref: "#/components/schemas/ShareLink" }
+        - type: object
+          required: [token]
+          properties: { token: { type: string } }
+    ShareLinkInput:
+      type: object
+      additionalProperties: false
+      required: [permission, expiresAt]
+      properties:
+        permission: { $ref: "#/components/schemas/Permission" }
+        expiresAt: { type: string, format: date-time }
+    ShareTokenInput:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties: { token: { type: string, minLength: 32, maxLength: 256 } }
+    Presence:
+      type: object
+      required: [projectId, userId, clientId, state, expiresAt, updatedAt]
+      properties:
+        projectId: { type: string }
+        userId: { type: string }
+        clientId: { type: string }
+        state: {}
+        expiresAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    PresenceInput:
+      type: object
+      additionalProperties: false
+      required: [clientId, state]
+      properties:
+        clientId: { type: string, minLength: 8, maxLength: 120 }
+        state: {}
+    AssetUploadInput:
+      type: object
+      additionalProperties: false
+      required: [projectId, kind, name, size, contentType]
+      properties:
+        projectId: { type: string }
+        kind: { type: string, enum: [image, font, export, thumbnail, other] }
+        name: { type: string, minLength: 1, maxLength: 255 }
+        size: { type: number, minimum: 1, maximum: 26214400 }
+        contentType: { type: string, minLength: 3, maxLength: 120 }
+    AssetUpload:
+      type: object
+      required: [uploadURL, objectPath]
+      properties:
+        uploadURL: { type: string }
+        objectPath: { type: string }
+    AssetConfirmInput:
+      type: object
+      additionalProperties: false
+      required: [objectPath]
+      properties:
+        objectPath: { type: string, minLength: 10, maxLength: 512 }
+    AssetConfirmation:
+      type: object
+      required: [objectPath, size, contentType]
+      properties:
+        objectPath: { type: string }
+        size: { type: number }
+        contentType: { type: string }
     AiCapabilities:
       type: object
+      required: [capabilityToken, provider, model, limits]
       properties:
-        capabilityToken:
-          type: string
-        provider:
-          type: string
-        model:
-          type: string
+        capabilityToken: { type: string }
+        provider: { type: string }
+        model: { type: string }
         limits:
           type: object
-          properties:
-            generationsPerHour:
-              type: number
           required: [generationsPerHour]
-      required: [capabilityToken, provider, model, limits]
+          properties: { generationsPerHour: { type: number } }
     GenerateImageRequest:
       type: object
-      properties:
-        prompt:
-          type: string
-          minLength: 3
-          maxLength: 1500
-        size:
-          type: string
-          enum: [1024x1024, 1536x1024, 1024x1536]
-          default: 1024x1024
       required: [prompt]
+      properties:
+        prompt: { type: string, minLength: 3, maxLength: 1500 }
+        size: { type: string, enum: [1024x1024, 1536x1024, 1024x1536], default: 1024x1024 }
     GenerateImageResponse:
       type: object
-      properties:
-        image:
-          type: string
-        provider:
-          type: string
-        model:
-          type: string
-        size:
-          type: string
       required: [image, provider, model, size]
+      properties:
+        image: { type: string }
+        provider: { type: string }
+        model: { type: string }
+        size: { type: string }
     HealthStatus:
       type: object
-      properties:
-        status:
-          type: string
-      required:
-        - status
-
+      required: [status]
+      properties: { status: { type: string } }

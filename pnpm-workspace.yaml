@@ -68,6 +68,18 @@ catalog:
 
 autoInstallPeers: false
 
+# Clerk SDKs declare narrow react peer ranges (e.g. ~19.1.4), but this
+# workspace must stay on react 19.1.0 exactly (Expo requirement above).
+# Clerk runs fine on 19.1.0; allow it explicitly instead of ignoring warnings.
+peerDependencyRules:
+  allowedVersions:
+    '@clerk/react>react': '19.1.0'
+    '@clerk/react>react-dom': '19.1.0'
+    '@clerk/shared>react': '19.1.0'
+    '@clerk/shared>react-dom': '19.1.0'
+    '@clerk/themes>react': '19.1.0'
+    '@clerk/themes>react-dom': '19.1.0'
+
 onlyBuiltDependencies:
   - '@swc/core'
   - esbuild

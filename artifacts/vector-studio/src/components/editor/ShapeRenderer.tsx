@@ -1,15 +1,14 @@
 import React, { SVGProps } from 'react';
 import { VectorObject } from '../../lib/types';
-import { useEditorStore } from '../../store/editor';
 import { nodesToSVGPath } from '../../lib/pathUtils';
+import { resolvePrivateObjectUrl } from '../../cloud/assets';
 
 interface ShapeRendererProps extends SVGProps<SVGGElement> {
   object: VectorObject;
+  objects?: VectorObject[];
 }
 
-export function ShapeRenderer({ object, ...props }: ShapeRendererProps) {
-  const { objects } = useEditorStore();
-  
+function ShapeRendererComponent({ object, objects = [], ...props }: ShapeRendererProps) {
   if (!object.visible) return null;
 
   const commonProps = {
@@ -186,7 +185,7 @@ export function ShapeRenderer({ object, ...props }: ShapeRendererProps) {
             y={object.y}
             width={Math.max(0.1, object.width)}
             height={Math.max(0.1, object.height)}
-            href={object.imageSrc}
+            href={resolvePrivateObjectUrl(object.imageSrc)}
             preserveAspectRatio="none"
             {...commonProps}
           />
@@ -197,3 +196,5 @@ export function ShapeRenderer({ object, ...props }: ShapeRendererProps) {
       return null;
   }
 }
+
+export const ShapeRenderer = React.memo(ShapeRendererComponent);

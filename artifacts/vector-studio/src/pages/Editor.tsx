@@ -2,18 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { useEditorStore, editorStore, deleteSelection, duplicateSelection, groupSelection, ungroupSelection, undo, redo } from '../store/editor';
 import Workspace from '../components/editor/Workspace';
 import EmbroideryWorkspace from '../components/editor/EmbroideryWorkspace';
+import PreviewWorkspace from '../components/editor/PreviewWorkspace';
 import Toolbar from '../components/editor/Toolbar';
 import TopBar from '../components/editor/TopBar';
 import RightSidebar from '../components/editor/RightSidebar';
 import { Command } from 'lucide-react';
+import { useCloudProject } from '../cloud/CloudProjectProvider';
+import CollaborationDrawer from '../components/editor/CollaborationDrawer';
 
 export default function Editor() {
   const [cmdOpen, setCmdOpen] = useState(false);
   const { selection, workspaceMode } = useEditorStore();
+  const { isReadOnly, saveNow, status, message } = useCloudProject();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (workspaceMode === 'embroidery') return;
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        if (!isReadOnly) void saveNow();
+        return;
+      }
+      if (status === 'conflict') return;
+      if (workspaceMode === 'embroidery' || workspaceMode === 'preview') return;
       // Command Palette
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
@@ -21,21 +31,21 @@ export default function Editor() {
       }
       
       // Delete selection
-      if (e.key === 'Backspace' || e.key === 'Delete') {
+      if (!isReadOnly && (e.key === 'Backspace' || e.key === 'Delete')) {
         if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
           deleteSelection();
         }
       }
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
+      if (!isReadOnly && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         duplicateSelection();
       }
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+      if (!isReadOnly && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) redo();
         else undo();
       }
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'g') {
+      if (!isReadOnly && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'g') {
         e.preventDefault();
         if (e.shiftKey) ungroupSelection();
         else groupSelection();
@@ -48,25 +58,30 @@ export default function Editor() {
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selection, workspaceMode]);
+  }, [selection, workspaceMode, isReadOnly, saveNow, status]);
 
-  const commands = [
+  const commands = (isReadOnly ? [
+    { label: 'Clear selection', shortcut: 'Esc', action: () => editorStore.set({ selection: [] }) },
+  ] : [
     { label: 'Undo last change', shortcut: '⌘ Z', action: undo },
     { label: 'Redo last change', shortcut: '⇧ ⌘ Z', action: redo },
     { label: 'Duplicate selection', shortcut: '⌘ D', action: duplicateSelection },
     { label: 'Group selection', shortcut: '⌘ G', action: groupSelection },
     { label: 'Ungroup selection', shortcut: '⇧ ⌘ G', action: ungroupSelection },
     { label: 'Clear selection', shortcut: 'Esc', action: () => editorStore.set({ selection: [] }) },
-  ];
+  ]);
 
   return (
     <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-background text-foreground select-none flex flex-col">
       <TopBar />
       <div className="flex-1 relative w-full h-full">
-        {workspaceMode === 'embroidery' ? <EmbroideryWorkspace /> : <Workspace />}
-        {workspaceMode !== 'embroidery' && <Toolbar />}
-        <RightSidebar />
+        {workspaceMode === 'embroidery' ? <EmbroideryWorkspace /> : workspaceMode === 'preview' ? <PreviewWorkspace /> : <Workspace />}
+        {workspaceMode === 'design' && !isReadOnly && <Toolbar />}
+        <div className={isReadOnly ? 'pointer-events-none' : ''}><RightSidebar /></div>
       </div>
+      {status === 'read-only' && <div className="fixed left-4 bottom-4 z-50 rounded-full border border-amber-400/30 bg-amber-500/15 px-3 py-1.5 text-xs font-semibold text-amber-300">Read-only viewer</div>}
+      {status === 'conflict' && <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/45 p-3"><div role="alertdialog" aria-modal="true" aria-label="Save conflict" className="w-full max-w-2xl rounded-xl border border-red-500/40 bg-card p-4 shadow-2xl"><strong className="text-red-300">Cloud save conflict</strong><p className="my-2 text-xs text-muted-foreground">{message}</p><div className="flex flex-wrap gap-2"><ConflictActions /></div></div></div>}
+      <CollaborationDrawer />
       
       {cmdOpen && (
          <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-start justify-center pt-[20vh]" onPointerDown={() => setCmdOpen(false)}>
@@ -96,4 +111,9 @@ export default function Editor() {
       )}
     </div>
   );
+}
+
+function ConflictActions() {
+  const cloud = useCloudProject();
+  return <><button autoFocus onClick={() => { if (confirm('Discard all local edits and reload the latest cloud version?')) void cloud.reloadRemote(); }} className="rounded bg-red-500/20 px-3 py-2 text-xs text-red-200">Reload latest</button><button onClick={() => void cloud.createCopy()} className="rounded bg-primary px-3 py-2 text-xs">Create cloud copy</button></>;
 }

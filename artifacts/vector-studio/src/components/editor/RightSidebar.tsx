@@ -6,6 +6,7 @@ import { performBooleanOp, isAxisAlignedRect } from '../../lib/booleanOps';
 import { pxToUnit, unitToPx } from '../../lib/units';
 import AIWorkspace from './AIWorkspace';
 import EmbroideryPanel from './EmbroideryPanel';
+import PreviewPanel from './PreviewPanel';
 
 function PrecisionPanel() {
   const { unit, snapToGrid, snapToObjects, gridSize, guides } = useEditorStore();
@@ -460,23 +461,24 @@ function LayersTab() {
 
 
 export default function RightSidebar() {
-  const [activeTab, setActiveTab] = useState<'design'|'layers'|'ai'|'embroidery'>('design');
+  const [activeTab, setActiveTab] = useState<'design'|'layers'|'ai'|'embroidery'|'preview'>('design');
 
   const tabs = [
     { id: 'design', label: 'Design' },
     { id: 'layers', label: 'Layers' },
     { id: 'ai', label: 'AI' },
     { id: 'embroidery', label: 'Embroidery' },
+    { id: 'preview', label: 'Preview' },
   ] as const;
 
   return (
     <div className="editor-inspector absolute right-6 top-20 bottom-6 w-80 bg-card/80 backdrop-blur-xl border border-white/5 rounded-2xl shadow-xl flex flex-col overflow-hidden z-10 transition-[width,right] duration-200">
-      <div className="flex p-2 gap-1 border-b border-white/5 bg-black/20">
+      <div className="flex p-2 gap-1 border-b border-white/5 bg-black/20 overflow-x-auto custom-scrollbar scrollbar-hide">
         {tabs.map(tab => (
           <button
             key={tab.id}
-            onClick={() => { setActiveTab(tab.id); editorStore.set({ workspaceMode: tab.id === "embroidery" ? "embroidery" : "design" }); }}
-            className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
+            onClick={() => { setActiveTab(tab.id); editorStore.set({ workspaceMode: tab.id === "embroidery" ? "embroidery" : tab.id === "preview" ? "preview" : "design" }); }}
+            className={`flex-none px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
               activeTab === tab.id ? 'bg-primary/20 text-primary border border-primary/20 shadow-sm' : 'text-muted-foreground hover:bg-white/5 border border-transparent'
             }`}
           >
@@ -490,6 +492,7 @@ export default function RightSidebar() {
         {activeTab === 'layers' && <LayersTab />}
         {activeTab === 'ai' && <AIWorkspace />}
         {activeTab === 'embroidery' && <EmbroideryPanel />}
+        {activeTab === 'preview' && <PreviewPanel />}
       </div>
     </div>
   );

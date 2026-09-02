@@ -5,6 +5,7 @@ import { generateId } from '../../lib/utils';
 import { VectorObject, PathNode } from '../../lib/types';
 import Rulers from './Rulers';
 import { computeBoundingBox, smoothPathNodes } from '../../lib/pathUtils';
+import { useCloudProject } from '../../cloud/CloudProjectProvider';
 
 type DragState =
   | { type: 'idle' }
@@ -18,6 +19,7 @@ type DragState =
 
 export default function Workspace() {
   const { objects, selection, activeTool, zoom, pan, artboard, guides } = useEditorStore();
+  const { isReadOnly } = useCloudProject();
   const svgRef = useRef<SVGSVGElement>(null);
   const [dragState, setDragState] = useState<DragState>({ type: 'idle' });
   const [isSpacePressed, setIsSpacePressed] = useState(false);
@@ -28,7 +30,7 @@ export default function Workspace() {
       if (e.code === 'Space' && document.activeElement?.tagName !== 'INPUT') {
         setIsSpacePressed(true);
       }
-      if (e.code === 'Escape' || e.code === 'Enter') {
+       if (!isReadOnly && (e.code === 'Escape' || e.code === 'Enter')) {
         if (activeTool === 'pen' && selection.length === 1) {
           const obj = objects.find(o => o.id === selection[0]);
           if (obj && obj.type === 'path' && obj.nodes) {
@@ -49,7 +51,7 @@ export default function Workspace() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [activeTool, selection, objects]);
+   }, [activeTool, selection, objects, isReadOnly]);
 
   const getSvgPoint = (clientX: number, clientY: number) => {
     return {
@@ -77,6 +79,7 @@ export default function Workspace() {
       });
       return;
     }
+    if (isReadOnly) return;
 
     const target = e.target as SVGElement;
     const isBg = target.tagName === 'svg' || target.id === 'artboard-bg';
@@ -383,6 +386,7 @@ export default function Workspace() {
   };
 
   const handleShapePointerDown = (e: React.PointerEvent, id: string) => {
+    if (isReadOnly) return;
     if (isSpacePressed || activeTool === 'pen' || activeTool === 'pencil') return;
     e.stopPropagation();
     
@@ -417,6 +421,7 @@ export default function Workspace() {
   };
 
   const handleResizePointerDown = (e: React.PointerEvent, handle: string, id: string) => {
+    if (isReadOnly) return;
     if (activeTool !== 'select') return;
     e.stopPropagation();
     const svgPoint = getSvgPoint(e.clientX, e.clientY);
@@ -434,6 +439,7 @@ export default function Workspace() {
   };
   
   const handleNodePointerDown = (e: React.PointerEvent, id: string, nodeIndex: number, handle: 'main'|'in'|'out') => {
+    if (isReadOnly) return;
     e.stopPropagation();
     const svgPoint = getSvgPoint(e.clientX, e.clientY);
     const obj = objects.find(o => o.id === id);
@@ -454,7 +460,7 @@ export default function Workspace() {
     <div 
       className={`absolute inset-0 z-0 overflow-hidden ${isSpacePressed ? 'cursor-grab active:cursor-grabbing' : (activeTool === 'pen' || activeTool === 'pencil') ? 'cursor-crosshair' : activeTool !== 'select' && activeTool !== 'node' ? 'cursor-crosshair' : 'cursor-default'}`}
     >
-      <Rulers onGuideStart={handleGuideStart} />
+      <Rulers onGuideStart={isReadOnly ? undefined : handleGuideStart} />
       <svg
         ref={svgRef}
         className="w-full h-full"
@@ -481,7 +487,7 @@ export default function Workspace() {
           
           {objects.map(obj => (
             <g key={obj.id} onPointerDown={(e) => handleShapePointerDown(e, obj.id)}>
-              <ShapeRenderer object={obj} />
+              <ShapeRenderer object={obj} objects={obj.type === 'text' && obj.textPathId ? objects : undefined} />
             </g>
           ))}
           

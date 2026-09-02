@@ -915,13 +915,13 @@ function EditsSection({ addAction }: { addAction: (msg: string) => void }) {
                <div className="bg-black/40 border border-white/5 rounded-md overflow-hidden aspect-square relative">
                   <div className="absolute top-1 left-1 text-[9px] text-muted-foreground bg-black/60 px-1 rounded z-10">Before</div>
                   <svg viewBox={vBox} className="w-full h-full relative">
-                     {selectedObjs.map(obj => <ShapeRenderer key={obj.id} object={obj} />)}
+                     {selectedObjs.map(obj => <ShapeRenderer key={obj.id} object={obj} objects={obj.type === 'text' && obj.textPathId ? selectedObjs : undefined} />)}
                   </svg>
                </div>
                <div className="bg-black/40 border border-white/5 rounded-md overflow-hidden aspect-square relative">
                   <div className="absolute top-1 left-1 text-[9px] text-muted-foreground bg-black/60 px-1 rounded z-10">After</div>
                   <svg viewBox={vBox} className="w-full h-full relative">
-                     {stagedObjects.filter(o => affectedIds.includes(o.id)).map(obj => <ShapeRenderer key={obj.id} object={obj} />)}
+                     {stagedObjects.filter(o => affectedIds.includes(o.id)).map(obj => <ShapeRenderer key={obj.id} object={obj} objects={obj.type === 'text' && obj.textPathId ? stagedObjects : undefined} />)}
                   </svg>
                </div>
             </div>

@@ -1,18 +1,22 @@
 import React, { useRef, useState } from 'react';
 import { useEditorStore, editorStore, undo, redo, setObjects } from '../../store/editor';
-import { Download, Undo2, Redo2, ZoomIn, ZoomOut, MousePointerSquareDashed, FileImage, Image as ImageIcon, Upload, AlertTriangle, CheckCircle2, Check } from 'lucide-react';
+import { Download, Undo2, Redo2, ZoomIn, ZoomOut, MousePointerSquareDashed, Upload, AlertTriangle, CheckCircle2, Users, Save } from 'lucide-react';
 import { VectorObject } from '../../lib/types';
 import { generateId } from '../../lib/utils';
 import { nodesToSVGPath, pathDataBounds } from '../../lib/pathUtils';
+import { useCloudProject } from '../../cloud/CloudProjectProvider';
+import { embedPrivateImages } from '../../cloud/assets';
 
 const escapeXml = (value: string | undefined) => (value || '').replace(/[<>&"']/g, character => ({
   '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;',
 }[character] || character));
 
-const isSafeImageSource = (value: string) => /^data:image\/(png|jpe?g|webp|gif);base64,/i.test(value);
+const isSafeImageSource = (value: string) => /^data:image\/(png|jpe?g|webp|gif);base64,/i.test(value) || value.startsWith('/objects/');
 
 export default function TopBar() {
   const { zoom, history, historyIndex, objects, artboard, projectName, workspaceMode } = useEditorStore();
+  const cloud = useCloudProject();
+  const storageWarning = useEditorStore().storageWarning;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [preflightOpen, setPreflightOpen] = useState(false);
@@ -20,11 +24,11 @@ export default function TopBar() {
   const [exportScale, setExportScale] = useState(1);
   const [transparentBackground, setTransparentBackground] = useState(false);
 
-  const getSVGContent = () => {
+  const getSVGContent = (exportObjects = objects) => {
     let svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${artboard.width} ${artboard.height}" width="${artboard.width}" height="${artboard.height}">\n`;
     if (!transparentBackground) svgContent += `  <rect width="100%" height="100%" fill="${escapeXml(artboard.fill)}" />\n`;
     
-    objects.filter(o => o.visible).forEach(obj => {
+    exportObjects.filter(o => o.visible).forEach(obj => {
       const transform = `transform="rotate(${obj.rotation} ${obj.x + obj.width/2} ${obj.y + obj.height/2})"`;
       const style = `fill="${escapeXml(obj.fill)}" stroke="${escapeXml(obj.stroke)}" stroke-width="${obj.strokeWidth}" opacity="${obj.opacity}"`;
       
@@ -43,7 +47,7 @@ export default function TopBar() {
         let textContent = `<text x="${tx}" y="${obj.y + (obj.fontSize || 16)}" font-family="${escapeXml(obj.fontFamily)}" font-size="${obj.fontSize}" font-weight="${escapeXml(obj.fontWeight || 'normal')}" letter-spacing="${obj.letterSpacing || 0}" text-anchor="${ta}" ${transform} ${style}>${escapeXml(obj.text)}</text>\n`;
         
         if (obj.textPathId) {
-           const pathObj = objects.find(o => o.id === obj.textPathId);
+            const pathObj = exportObjects.find(o => o.id === obj.textPathId);
            if (pathObj) {
               const d = pathObj.points || (pathObj.nodes ? nodesToSVGPath(pathObj.nodes, pathObj.closed) : '');
               textContent = `  <defs><path id="path-${obj.id}" d="${d}" /></defs>\n`;
@@ -77,8 +81,9 @@ export default function TopBar() {
     return svgContent;
   };
 
-  const handleExportSVG = () => {
-    const svgContent = getSVGContent();
+  const handleExportSVG = async () => {
+    try {
+    const svgContent = getSVGContent(await embedPrivateImages(objects));
     const blob = new Blob([svgContent], { type: 'image/svg+xml' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -87,10 +92,13 @@ export default function TopBar() {
     a.click();
     URL.revokeObjectURL(url);
     setNotice(`Exported SVG with ${objects.filter(object => object.visible).length} visible layers.`);
+    } catch (error) { setNotice((error as Error).message); }
   };
 
-  const handleExportPNG = () => {
-    const svgContent = getSVGContent();
+  const handleExportPNG = async () => {
+    let svgContent: string;
+    try { svgContent = getSVGContent(await embedPrivateImages(objects)); }
+    catch (error) { setNotice((error as Error).message); return; }
     const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     
@@ -272,27 +280,28 @@ export default function TopBar() {
   };
 
   return (
-    <div className="absolute top-0 left-0 right-0 h-14 bg-card/80 backdrop-blur-xl border-b border-white/5 z-40 flex items-center justify-between px-6">
-      <div className="flex items-center gap-3">
+    <div className="editor-topbar absolute top-0 left-0 right-0 h-14 bg-card/80 backdrop-blur-xl border-b border-white/5 z-40 flex items-center justify-between px-6">
+      <div className="editor-topbar-brand flex items-center gap-3 min-w-0">
         <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/20 text-primary shadow-[0_0_15px_rgba(139,92,246,0.15)]">
           <MousePointerSquareDashed size={20} />
         </div>
         <div>
           <span className="font-semibold text-sm tracking-wide block">VECTOR STUDIO</span>
           <div className="flex items-center gap-1.5">
-            <input aria-label="Project name" value={projectName} onChange={event => editorStore.set({ projectName: event.target.value })} className="w-36 bg-transparent text-[10px] text-muted-foreground outline-none focus:text-foreground" />
-            <Check size={10} className="text-emerald-400" aria-hidden="true" />
-            <span className="text-[9px] text-muted-foreground">Saved locally</span>
+            <input aria-label="Project name" disabled={cloud.isReadOnly || (cloud.projectId !== undefined && cloud.permission !== 'owner')} value={projectName} onChange={event => editorStore.set({ projectName: event.target.value })} className="w-36 bg-transparent text-[10px] text-muted-foreground outline-none focus:text-foreground disabled:opacity-70" />
+            <span role="status" title={cloud.message || storageWarning || ''} className={`text-[9px] ${cloud.status === 'error' || cloud.status === 'conflict' || storageWarning ? 'text-amber-400' : 'text-muted-foreground'}`}>
+              {storageWarning || ({ loading: 'Loading cloud…', 'local-only': 'Local-only recovery', unsaved: 'Unsaved changes', saving: 'Saving…', saved: 'Saved to cloud', offline: 'Offline — unsaved', conflict: 'Conflict — action needed', 'read-only': 'Read-only', error: 'Cloud save error', updated: 'Updated from collaborator' }[cloud.status])}
+            </span>
           </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 bg-black/20 rounded-lg p-1 border border-white/5">
+      <div className="editor-zoom-controls flex items-center gap-2 bg-black/20 rounded-lg p-1 border border-white/5">
         {workspaceMode === 'design' && (
           <>
             <button
               onClick={undo}
-              disabled={historyIndex <= 0}
+              disabled={cloud.isReadOnly || historyIndex <= 0}
               aria-label="Undo design change"
               className="p-1.5 rounded-md hover:bg-white/10 disabled:opacity-50 disabled:hover:bg-transparent transition-colors text-muted-foreground hover:text-foreground"
             >
@@ -300,7 +309,7 @@ export default function TopBar() {
             </button>
             <button
               onClick={redo}
-              disabled={historyIndex >= history.length - 1}
+              disabled={cloud.isReadOnly || historyIndex >= history.length - 1}
               aria-label="Redo design change"
               className="p-1.5 rounded-md hover:bg-white/10 disabled:opacity-50 disabled:hover:bg-transparent transition-colors text-muted-foreground hover:text-foreground"
             >
@@ -328,20 +337,36 @@ export default function TopBar() {
         </button>
       </div>
 
-      <div className="flex items-center gap-2 relative">
+      <div className="editor-topbar-actions flex items-center gap-2 relative">
         {notice && <div role="status" className="absolute top-10 right-0 w-80 rounded-lg border border-white/10 bg-card px-3 py-2 text-xs text-muted-foreground shadow-xl">{notice}<button onClick={() => setNotice('')} className="float-right ml-2 text-foreground">Dismiss</button></div>}
         <input type="file" accept=".svg" ref={fileInputRef} onChange={handleImportSVG} className="hidden" />
         <input type="file" accept=".png,.jpg,.jpeg" ref={imageInputRef} onChange={handleImportImage} className="hidden" />
+        {cloud.projectId && <><button aria-label="Save now" title="Save now (Ctrl/Cmd+S)" disabled={cloud.isReadOnly || cloud.status === 'saving' || cloud.status === 'conflict'} onClick={() => void cloud.saveNow()} className="p-2 rounded hover:bg-white/10 disabled:opacity-40"><Save size={15}/></button><button aria-label="Open collaboration" onClick={() => cloud.setCollaborationOpen(true)} className="p-2 rounded hover:bg-white/10"><Users size={16}/></button></>}
         
         {workspaceMode === 'embroidery' ? (
           <div className="flex items-center px-3 py-1.5 bg-primary/20 text-primary text-xs font-medium rounded-md border border-primary/30">
              Stitch Plan Mode
           </div>
+        ) : workspaceMode === 'preview' ? (
+          <div className="flex items-center gap-2">
+            <div className="flex items-center px-3 py-1.5 bg-primary/20 text-primary text-xs font-medium rounded-md border border-primary/30">
+               Visual Preview Mode
+            </div>
+             <button
+               onClick={() => {
+                  // Simulate composite download label, since real composite is hard without canvas
+                  setNotice('Visual preview composite snapshot generation is not available in this version. Use "Design" mode to export vectors.');
+               }}
+               className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/10 rounded-md text-sm font-medium transition-colors text-muted-foreground hover:text-foreground"
+            >
+               <Download size={14} /> Snapshot
+            </button>
+          </div>
         ) : (
           <>
             <button
               onClick={() => setPreflightOpen(!preflightOpen)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${getPreflightWarnings().length > 0 ? 'text-amber-500 hover:bg-amber-500/10' : 'text-emerald-500 hover:bg-emerald-500/10'}`}
+               className={`editor-preflight flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${getPreflightWarnings().length > 0 ? 'text-amber-500 hover:bg-amber-500/10' : 'text-emerald-500 hover:bg-emerald-500/10'}`}
               title="Preflight Checks"
             >
               {getPreflightWarnings().length > 0 ? <AlertTriangle size={14} /> : <CheckCircle2 size={14} />}
@@ -371,7 +396,7 @@ export default function TopBar() {
 
             <div className="w-px h-4 bg-white/10 mx-1" />
 
-            <div className="group relative">
+             {!cloud.isReadOnly && <div className="editor-import group relative">
                <button className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/10 rounded-md text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
                  <Upload size={14} /> Import
                </button>
@@ -379,7 +404,7 @@ export default function TopBar() {
                   <button onClick={() => fileInputRef.current?.click()} className="w-full text-left px-3 py-2 text-xs hover:bg-white/10 text-muted-foreground hover:text-foreground">Import SVG</button>
                   <button onClick={() => imageInputRef.current?.click()} className="w-full text-left px-3 py-2 text-xs hover:bg-white/10 text-muted-foreground hover:text-foreground">Import Image</button>
                </div>
-            </div>
+            </div>}
 
             <div className="group relative">
                <button className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/10 rounded-md text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">

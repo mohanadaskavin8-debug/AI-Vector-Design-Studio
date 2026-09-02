@@ -3,6 +3,7 @@ import { useEmbroideryStore, embroideryStore, selectEmbroideryRegion } from '../
 import { useEditorStore } from '../../store/editor';
 import { computeMetrics, EMBROIDERY_PX_PER_MM, type StitchCommand } from '../../lib/embroidery';
 import { Eye, Navigation, Scissors, ListOrdered, MoveRight, Layers } from 'lucide-react';
+import { useCloudProject } from '../../cloud/CloudProjectProvider';
 
 const buildStitchPath = (commands: StitchCommand[], layer: 'underlay' | 'top') => {
   let path = '';
@@ -23,6 +24,7 @@ const buildStitchPath = (commands: StitchCommand[], layer: 'underlay' | 'top') =
 export default function EmbroideryWorkspace() {
   const { zoom, pan, artboard } = useEditorStore();
   const { design, selectedRegionIds, viewSettings } = useEmbroideryStore();
+  const { isReadOnly } = useCloudProject();
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if ((e.target as SVGElement).id === 'embroidery-bg') {
@@ -158,6 +160,7 @@ export default function EmbroideryWorkspace() {
       {/* View Controls Overlay */}
       <div className="absolute bottom-6 left-6 flex items-center gap-1.5 bg-black/80 backdrop-blur border border-white/10 p-1.5 rounded-lg z-10 shadow-xl">
          <button 
+            disabled={isReadOnly}
            title="Realistic view"
            aria-pressed={viewSettings.showRealistic}
            onClick={() => embroideryStore.set({ viewSettings: { ...viewSettings, showRealistic: !viewSettings.showRealistic }})}
@@ -166,6 +169,7 @@ export default function EmbroideryWorkspace() {
             <Eye size={14} />
          </button>
          <button 
+            disabled={isReadOnly}
            title="Show stitch direction"
            aria-pressed={viewSettings.showDirection}
            onClick={() => embroideryStore.set({ viewSettings: { ...viewSettings, showDirection: !viewSettings.showDirection }})}
@@ -174,6 +178,7 @@ export default function EmbroideryWorkspace() {
             <Navigation size={14} />
          </button>
          <button 
+            disabled={isReadOnly}
            title="Show underlay"
            aria-pressed={viewSettings.showUnderlay}
            onClick={() => embroideryStore.set({ viewSettings: { ...viewSettings, showUnderlay: !viewSettings.showUnderlay }})}
@@ -183,6 +188,7 @@ export default function EmbroideryWorkspace() {
          </button>
          <div className="w-px h-6 bg-white/10 mx-1" />
          <button 
+            disabled={isReadOnly}
            title="Show jumps"
            aria-pressed={viewSettings.showJumps}
            onClick={() => embroideryStore.set({ viewSettings: { ...viewSettings, showJumps: !viewSettings.showJumps }})}
@@ -191,6 +197,7 @@ export default function EmbroideryWorkspace() {
             <MoveRight size={14} />
          </button>
          <button 
+            disabled={isReadOnly}
            title="Show trims"
            aria-pressed={viewSettings.showTrims}
            onClick={() => embroideryStore.set({ viewSettings: { ...viewSettings, showTrims: !viewSettings.showTrims }})}
@@ -199,6 +206,7 @@ export default function EmbroideryWorkspace() {
             <Scissors size={14} />
          </button>
          <button 
+            disabled={isReadOnly}
            title="Show sequence order"
            aria-pressed={viewSettings.showOrder}
            onClick={() => embroideryStore.set({ viewSettings: { ...viewSettings, showOrder: !viewSettings.showOrder }})}

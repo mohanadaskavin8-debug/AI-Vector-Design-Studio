@@ -95,25 +95,44 @@ export const editorStore = createStore<DocumentState>({
   historyIndex: 0,
   projectName: localStorage.getItem('vector-studio-name') || 'Untitled composition',
   saveStatus: 'saved',
+  storageWarning: null,
   guides: [],
   snapToGrid: false,
   snapToObjects: true,
   gridSize: 10,
   unit: 'px',
   workspaceMode: 'design',
+  previewState: {
+    scene: 'apparel',
+    preset: 't-shirt',
+    position: { x: 0.5, y: 0.5 },
+    scale: 0.5,
+    rotation: 0,
+    opacity: 0.9,
+    blendMode: 'multiply',
+    printFinish: 'matte',
+    shadowStrength: 0.5,
+    textureStrength: 0.5,
+    surfaceColor: '#F3F4F6',
+    quality: 'high'
+  }
 });
 
 export const useEditorStore = () => editorStore.useStore((state) => state);
 
+let persistenceTimer: ReturnType<typeof setTimeout> | undefined;
 editorStore.subscribe(() => {
-  const { objects, projectName } = editorStore.get();
-  try {
-    localStorage.setItem('vector-studio-doc', JSON.stringify(objects));
-    localStorage.setItem('vector-studio-name', projectName);
-  } catch {
-    // Large embedded raster assets can exceed browser storage. Keep the live
-    // document and history usable even when local recovery cannot be refreshed.
-  }
+  clearTimeout(persistenceTimer);
+  persistenceTimer = setTimeout(() => {
+    const { objects, projectName, storageWarning } = editorStore.get();
+    try {
+      localStorage.setItem('vector-studio-doc', JSON.stringify(objects));
+      localStorage.setItem('vector-studio-name', projectName);
+      if (storageWarning) editorStore.set({ storageWarning: null });
+    } catch {
+      if (!storageWarning) editorStore.set({ storageWarning: 'Browser recovery could not be refreshed (storage quota). Keep this tab open or save to cloud.' });
+    }
+  }, 250);
 });
 
 // Actions
