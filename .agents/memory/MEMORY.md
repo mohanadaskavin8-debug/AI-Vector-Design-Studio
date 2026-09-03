@@ -7,3 +7,5 @@
 - [Image trace engine](image-trace-engine.md) — tracer stays DOM-free (ASCII-raster vitest); nodes XOR points per part; recompute traceRole when combining parts or stitching drops content.
 - [Machine stitch formats](machine-stitch-formats.md) — pyembroidery is binary-layout ground truth but NOT trim policy: only plan-trimmed travels get trim flags; test via independent parsers.
 - [Auto-satin defaults](satin-defaults.md) — width=2A/P + elongation gate; auto-defaults must stay under preflight limits minus pull growth; converted text is one path per word (per-letter split is the satin-lettering unlock).
+- [Copilot plan safety](copilot-plan-safety.md) — enforce selection scope in BOTH validators; rigid paths (raw points, no nodes/traceRole) are style-only everywhere; Apply must rebase plans onto the live doc.
+- [AI provider quirks](ai-provider-quirks.md) — gpt-5.x via AI Integrations rejects non-default temperature; omit sampling params from chat calls.

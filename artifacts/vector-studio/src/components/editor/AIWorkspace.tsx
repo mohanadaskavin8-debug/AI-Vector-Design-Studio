@@ -16,9 +16,10 @@ import {
 import { IMAGE_PASTE_EVENT, importImageFile, imageLayerName, loadImageElement } from '../../lib/imageImport';
 import { consumeTraceRequest, peekTraceRequest } from '../../lib/traceRequest';
 import { resolvePrivateObjectUrl } from '../../cloud/assets';
+import { CopilotSection } from './CopilotSection';
 
 export default function AIWorkspace() {
-  const [activeTab, setActiveTab] = useState<'generate' | 'trace' | 'edits'>(() => (peekTraceRequest() ? 'trace' : 'generate'));
+  const [activeTab, setActiveTab] = useState<'copilot' | 'generate' | 'trace' | 'edits'>(() => (peekTraceRequest() ? 'trace' : 'copilot'));
   const [recentActions, setRecentActions] = useState<{id: string, text: string}[]>([]);
 
   const addAction = (text: string) => {
@@ -28,6 +29,15 @@ export default function AIWorkspace() {
   return (
     <div className="flex flex-col h-full">
       <div className="flex p-2 gap-1 border-b border-white/5 bg-black/20">
+        <button
+          onClick={() => setActiveTab('copilot')}
+           title="Describe edits or layout changes for the AI assistant to perform"
+          className={`flex-1 py-1.5 text-[10px] font-medium rounded-md transition-all duration-200 ${
+            activeTab === 'copilot' ? 'bg-primary/20 text-primary border border-primary/20 shadow-sm' : 'text-muted-foreground hover:bg-white/5 border border-transparent'
+          }`}
+        >
+          Copilot
+        </button>
         <button
           onClick={() => setActiveTab('generate')}
            title="Create a new raster image from a written prompt, then review it before adding it to the canvas"
@@ -62,6 +72,7 @@ export default function AIWorkspace() {
         {activeTab === 'generate' && <GenerateSection addAction={addAction} />}
         {activeTab === 'trace' && <TraceSection addAction={addAction} />}
         {activeTab === 'edits' && <EditsSection addAction={addAction} />}
+        {activeTab === 'copilot' && <CopilotSection addAction={addAction} />}
       </div>
 
       <RecentActionsView actions={recentActions} />
