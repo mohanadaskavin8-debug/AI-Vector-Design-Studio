@@ -737,4 +737,60 @@ describe('machineExportPreflight', () => {
     expect(warnings[0].message).toContain('exact design colors');
     expect(warnings[0].message).toContain('→ Red');
   });
+
+  describe('hoop fit', () => {
+    const hoopWarnings = (design: EmbroideryDesign, format: 'DST' | 'PES' = 'DST') =>
+      machineExportPreflight(design, format).filter(warning => warning.message.includes('hoop'));
+
+    it('stays quiet when the design fits inside the hoop', () => {
+      for (const format of ['DST', 'PES'] as const) {
+        expect(hoopWarnings(twoColorDesign(), format)).toEqual([]);
+      }
+    });
+
+    it('stays quiet when the design exactly fills the hoop', () => {
+      // ±10 mm from the hoop center exactly spans a 20 × 20 mm hoop.
+      const design = makeDesign([
+        makeRegion('a', '#000000', [
+          cmd('jump', -10, -10),
+          cmd('stitch', 10, -10),
+          cmd('stitch', 10, 10),
+          cmd('stitch', -10, 10),
+        ]),
+      ], { name: '20x20', widthMm: 20, heightMm: 20 });
+      expect(hoopWarnings(design)).toEqual([]);
+    });
+
+    it('warns with the overhang in mm when the design exceeds the hoop', () => {
+      // 15 mm from center against a 10 mm half-hoop → 5 mm overhang.
+      const design = makeDesign([
+        makeRegion('a', '#000000', [cmd('jump', 0, 0), cmd('stitch', 15, 0)]),
+      ], { name: '20x20', widthMm: 20, heightMm: 20 });
+      for (const format of ['DST', 'PES'] as const) {
+        const warnings = hoopWarnings(design, format);
+        expect(warnings).toHaveLength(1);
+        expect(warnings[0].severity).toBe('warning');
+        expect(warnings[0].message).toContain('5.0 mm');
+        expect(warnings[0].message).toContain('20 × 20 mm hoop');
+      }
+    });
+
+    it('uses the plan-bounds center when the hoop has no center', () => {
+      // A 10 mm-wide run far from the artboard center still fits a 20 mm hoop
+      // because the plan centers itself when centerX/centerY are absent.
+      const fitting = makeDesign([
+        makeRegion('a', '#000000', [cmd('jump', 40, 40), cmd('stitch', 50, 40)]),
+      ], { name: '20x20', widthMm: 20, heightMm: 20, centerX: undefined, centerY: undefined });
+      expect(hoopWarnings(fitting)).toEqual([]);
+
+      // A 30 mm-wide run overflows a 20 mm hoop by 5 mm on each side.
+      const overflowing = makeDesign([
+        makeRegion('a', '#000000', [cmd('jump', 40, 40), cmd('stitch', 70, 40)]),
+      ], { name: '20x20', widthMm: 20, heightMm: 20, centerX: undefined, centerY: undefined });
+      const warnings = hoopWarnings(overflowing);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warning');
+      expect(warnings[0].message).toContain('5.0 mm');
+    });
+  });
 });

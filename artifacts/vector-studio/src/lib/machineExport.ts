@@ -802,6 +802,24 @@ export const machineExportPreflight = (design: EmbroideryDesign, format: Machine
     }];
   }
   const warnings: PreflightWarning[] = [];
+  // Hoop fit: plan bounds are machine units (0.1 mm) relative to the hoop
+  // center (or the plan-bounds center when the hoop has no center), so the
+  // design fits when every extent stays within half the hoop on each axis.
+  const hoopHalfWidth = (design.hoop.widthMm * MACHINE_UNITS_PER_MM) / 2;
+  const hoopHalfHeight = (design.hoop.heightMm * MACHINE_UNITS_PER_MM) / 2;
+  const overhangUnits = Math.max(
+    plan.bounds.maxX - hoopHalfWidth,
+    -plan.bounds.minX - hoopHalfWidth,
+    plan.bounds.maxY - hoopHalfHeight,
+    -plan.bounds.minY - hoopHalfHeight,
+  );
+  if (overhangUnits > 0) {
+    warnings.push({
+      severity: 'warning',
+      message: `Design extends ${(overhangUnits / MACHINE_UNITS_PER_MM).toFixed(1)} mm past the ${design.hoop.widthMm} × ${design.hoop.heightMm} mm hoop — the machine may refuse or mis-stitch it.`,
+      recommendation: 'Choose a larger hoop or resize the artwork before stitching.',
+    });
+  }
   const hasTrims = plan.ops.some(op => op.type === 'jump' && op.trim);
   if (format === 'DST') {
     const shown = plan.threads.slice(0, 8).join(', ');
