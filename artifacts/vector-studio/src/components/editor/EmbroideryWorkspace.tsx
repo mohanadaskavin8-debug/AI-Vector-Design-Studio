@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useEmbroideryStore, embroideryStore, selectEmbroideryRegion } from '../../store/embroidery';
 import { useEditorStore } from '../../store/editor';
 import { computeMetrics, EMBROIDERY_PX_PER_MM, type StitchCommand } from '../../lib/embroidery';
-import { Eye, Navigation, Scissors, ListOrdered, MoveRight, Layers } from 'lucide-react';
+import { Eye, Navigation, Scissors, ListOrdered, MoveRight, Layers, Play } from 'lucide-react';
 import { useCloudProject } from '../../cloud/CloudProjectProvider';
+import { playbackStore, openPlayback, closePlayback } from '../../store/playback';
+import { buildPlaybackPlan } from '../../lib/stitchPlayback';
+import { StitchPlaybackLayer, StitchPlaybackTransport } from './StitchPlayer';
 
 const buildStitchPath = (commands: StitchCommand[], layer: 'underlay' | 'top') => {
   let path = '';
@@ -37,6 +40,11 @@ export default function EmbroideryWorkspace() {
   const hoopCenterX = design.hoop.centerX ?? artboard.width / 2;
   const hoopCenterY = design.hoop.centerY ?? artboard.height / 2;
   const metrics = computeMetrics(design);
+  const playbackActive = playbackStore.useStore(state => state.active);
+  // Building the timeline costs a few ms at the 35k-command cap, so only do
+  // it while the player is open.
+  const playbackPlan = useMemo(() => (playbackActive ? buildPlaybackPlan(design) : null), [playbackActive, design]);
+  const hasStitchCommands = design.regions.some(region => region.visible && region.commands.some(command => command.type === 'stitch'));
 
   return (
     <div className="absolute inset-0 bg-[#0f1115] overflow-hidden" onPointerDown={handlePointerDown}>
@@ -87,7 +95,8 @@ export default function EmbroideryWorkspace() {
              pointerEvents="none"
           />
 
-          {/* Stitch regions */}
+          {/* Stitch regions (dimmed to a ghost while the stitch-out player is open) */}
+          <g opacity={playbackActive ? 0.14 : undefined}>
           {design.regions.filter(r => r.visible).map((region, i) => (
              <g key={region.id} opacity={selectedRegionIds.length === 0 || selectedRegionIds.includes(region.id) ? 1 : 0.4} className="transition-opacity">
                  {viewSettings.showUnderlay && (
@@ -154,11 +163,27 @@ export default function EmbroideryWorkspace() {
                 )}
              </g>
           ))}
+          </g>
+
+          {/* Progressive stitch-out playback (needle, live thread, event cues) */}
+          {playbackActive && playbackPlan && <StitchPlaybackLayer plan={playbackPlan} zoom={zoom} />}
         </g>
       </svg>
       
       {/* View Controls Overlay */}
       <div className="absolute bottom-6 left-6 flex items-center gap-1.5 bg-black/80 backdrop-blur border border-white/10 p-1.5 rounded-lg z-10 shadow-xl">
+         {/* Playback never mutates the design, so it stays available to read-only viewers. */}
+         <button
+           title={playbackActive ? 'Close stitch-out player' : 'Play stitch-out'}
+           aria-pressed={playbackActive}
+           data-testid="button-play-stitchout"
+           disabled={!hasStitchCommands}
+           onClick={() => (playbackActive ? closePlayback() : openPlayback())}
+           className={`p-2 rounded-md transition-colors flex items-center justify-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed ${playbackActive ? 'bg-primary/30 text-primary' : 'hover:bg-white/10 text-muted-foreground'}`}
+         >
+            <Play size={14} />
+         </button>
+         <div className="w-px h-6 bg-white/10 mx-1" />
          <button 
             disabled={isReadOnly}
            title="Realistic view"
@@ -224,6 +249,9 @@ export default function EmbroideryWorkspace() {
           <div>Plan: <span className="text-foreground">{metrics.widthMm.toFixed(1)} × {metrics.heightMm.toFixed(1)} mm</span></div>
           <div>Hoop: <span className="text-foreground">{design.hoop.widthMm} × {design.hoop.heightMm} mm</span></div>
       </div>
+
+      {/* Stitch-out transport bar (play/pause, speed, scrubber, readouts) */}
+      {playbackActive && playbackPlan && <StitchPlaybackTransport plan={playbackPlan} />}
     </div>
   );
 }

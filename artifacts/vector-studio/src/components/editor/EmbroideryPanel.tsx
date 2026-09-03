@@ -1,11 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { useEditorStore } from '../../store/editor';
 import { useEmbroideryStore, setEmbroideryRegions, updateEmbroideryRegion, selectEmbroideryRegion, setHoop, moveRegion, deleteRegion } from '../../store/embroidery';
-import { Scissors, AlertTriangle, Wand2, Download, Layers, CheckCircle2, Info, Eye, EyeOff, Trash2, ArrowUp, ArrowDown, RefreshCw, X } from 'lucide-react';
+import { Scissors, AlertTriangle, Wand2, Download, Layers, CheckCircle2, Info, Eye, EyeOff, Trash2, ArrowUp, ArrowDown, RefreshCw, X, Play } from 'lucide-react';
 import { generateId } from '../../lib/utils';
 import { StitchRegion, generateStitches, computeMetrics, inspectEmbroidery, commandsBounds, getGeometryQuality, EmbroideryGenerationError, computeSourceFingerprint, isRegionStale } from '../../lib/embroidery';
 import { useAssistStore, dismissAssistSummary, clearAssistError } from '../../store/assist';
 import { startAssistedDigitize } from '../../lib/assistedFlow';
+import { openPlayback } from '../../store/playback';
 
 export default function EmbroideryPanel() {
   const { objects, selection, artboard } = useEditorStore();
@@ -281,6 +282,15 @@ export default function EmbroideryPanel() {
                         ? `Hoop ${assist.summary.hoop.name} mm auto-selected \u2014 design is ${assist.summary.hoop.planWidthMm.toFixed(0)} \u00d7 ${assist.summary.hoop.planHeightMm.toFixed(0)} mm.`
                         : `Design is ${assist.summary.hoop.planWidthMm.toFixed(0)} \u00d7 ${assist.summary.hoop.planHeightMm.toFixed(0)} mm \u2014 larger than the biggest ${assist.summary.hoop.name} mm hoop. Scale the artwork down or split it.`}
                     </p>
+                  )}
+                  {assist.summary.totalStitches > 0 && (
+                    <button
+                      onClick={() => openPlayback()}
+                      data-testid="button-watch-stitchout"
+                      className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md border border-primary/30 bg-primary/15 text-primary hover:bg-primary/25 text-[10px] font-medium transition-colors"
+                    >
+                      <Play size={11} /> Watch stitch-out
+                    </button>
                   )}
                   {assist.summary.skipped.length > 0 && (
                     <div className="space-y-1 pt-1 border-t border-white/5">
