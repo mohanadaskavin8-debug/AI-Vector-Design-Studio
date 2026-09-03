@@ -241,6 +241,135 @@ const u24le = (bytes: Uint8Array, offset: number) =>
 const PEC_HEADER = 512;
 const ICON_BYTES = 228;
 
+// --- Independent PES v6 parser (header, sew sections, addendum) ---------------
+
+const s16 = (value: number) => (value >= 0x8000 ? value - 0x10000 : value);
+const f32le = (bytes: Uint8Array, offset: number) =>
+  new DataView(bytes.buffer, bytes.byteOffset + offset, 4).getFloat32(0, true);
+
+interface PesV6 {
+  pecOffset: number;
+  name: string;
+  threads: { r: number; g: number; b: number; description: string }[];
+  transX: number;
+  transY: number;
+  width: number;
+  height: number;
+  sections: { flag: number; colorCode: number; points: { x: number; y: number }[] }[];
+  colorLog: { section: number; colorCode: number }[];
+  addendumIndices: number[];
+  addendumRgbs: { r: number; g: number; b: number }[];
+}
+
+/** Walks the whole v6 layout, asserting every structural marker on the way. */
+const parsePesV6 = (bytes: Uint8Array): PesV6 => {
+  expect(ascii(bytes.slice(0, 8))).toBe('#PES0060');
+  const pecOffset = u32le(bytes, 8);
+  let o = 12;
+  expect(u16le(bytes, o)).toBe(0x01); // hoop indicator
+  o += 2;
+  expect(ascii(bytes.slice(o, o + 2))).toBe('02'); // ASCII subversion
+  o += 2;
+  const readString8 = () => {
+    const length = bytes[o];
+    const text = ascii(bytes.slice(o + 1, o + 1 + length));
+    o += 1 + length;
+    return text;
+  };
+  const name = readString8();
+  for (let i = 0; i < 4; i += 1) readString8(); // category/author/keywords/comments
+  o += 18 * 2; // design page settings
+  o += 1 + bytes[o]; // from-image filename
+  o += 6 * 4; // image affine
+  o += 3 * 2; // fill/motif/feather pattern counts
+  const threadCount = u16le(bytes, o);
+  o += 2;
+  const threads: PesV6['threads'] = [];
+  for (let i = 0; i < threadCount; i += 1) {
+    o += 1 + bytes[o]; // catalog number
+    const [r, g, b] = [bytes[o], bytes[o + 1], bytes[o + 2]];
+    o += 4; // rgb + padding byte
+    expect(u32le(bytes, o)).toBe(0x0a); // custom-color thread type
+    o += 4;
+    const description = readString8();
+    o += 1 + bytes[o]; // brand
+    o += 1 + bytes[o]; // chart
+    threads.push({ r, g, b, description });
+  }
+  expect(u16le(bytes, o)).toBe(1); // one distinct block object
+  o += 2;
+  expect([u16le(bytes, o), u16le(bytes, o + 2)]).toEqual([0xffff, 0x0000]); // blocks follow
+  o += 4;
+  expect(u16le(bytes, o)).toBe(7);
+  expect(ascii(bytes.slice(o + 2, o + 9))).toBe('CEmbOne');
+  o += 9;
+  o += 16; // unused bounding rectangles
+  o += 16; // identity scale/rotation
+  const transX = f32le(bytes, o);
+  const transY = f32le(bytes, o + 4);
+  o += 8;
+  o += 6; // 1, 0, 0
+  const width = u16le(bytes, o);
+  const height = u16le(bytes, o + 2);
+  o += 4;
+  o += 8; // reserved
+  const sectionCount = u16le(bytes, o);
+  o += 2;
+  expect([u16le(bytes, o), u16le(bytes, o + 2)]).toEqual([0xffff, 0x0000]);
+  o += 4;
+  expect(u16le(bytes, o)).toBe(7);
+  expect(ascii(bytes.slice(o + 2, o + 9))).toBe('CSewSeg');
+  o += 9;
+  const sections: PesV6['sections'] = [];
+  for (let i = 0; i < sectionCount; i += 1) {
+    if (i > 0) {
+      expect(u16le(bytes, o)).toBe(0x8003); // section separator
+      o += 2;
+    }
+    const flag = u16le(bytes, o);
+    const colorCode = u16le(bytes, o + 2);
+    const count = u16le(bytes, o + 4);
+    o += 6;
+    const points: { x: number; y: number }[] = [];
+    for (let p = 0; p < count; p += 1) {
+      points.push({ x: s16(u16le(bytes, o)), y: s16(u16le(bytes, o + 2)) });
+      o += 4;
+    }
+    sections.push({ flag, colorCode, points });
+  }
+  const logCount = u16le(bytes, o);
+  o += 2;
+  const colorLog: PesV6['colorLog'] = [];
+  for (let i = 0; i < logCount; i += 1) {
+    colorLog.push({ section: u16le(bytes, o), colorCode: u16le(bytes, o + 2) });
+    o += 4;
+  }
+  expect([u16le(bytes, o), u16le(bytes, o + 2)]).toEqual([0, 0]); // no more blocks
+  o += 4;
+  expect([u32le(bytes, o), u32le(bytes, o + 4)]).toEqual([0, 0]); // node/order table
+  o += 8;
+  for (let i = 0; i < logCount; i += 1) {
+    expect(u32le(bytes, o)).toBe(i);
+    expect(u32le(bytes, o + 4)).toBe(0);
+    o += 8;
+  }
+  expect(o).toBe(pecOffset); // the sew sections account for every header byte
+  // Addendum sits after the PEC block (header + stitch block + thumbnails).
+  const blockLength = u24le(bytes, pecOffset + PEC_HEADER + 2);
+  const addendum = pecOffset + PEC_HEADER + blockLength + ICON_BYTES * (1 + threadCount);
+  expect(bytes[addendum]).toBe(threadCount - 1);
+  const addendumIndices = [...bytes.slice(addendum + 1, addendum + 1 + threadCount)];
+  const rgbsAt = addendum + 128 + 0x90 * threadCount;
+  const addendumRgbs: PesV6['addendumRgbs'] = [];
+  for (let i = 0; i < threadCount; i += 1) {
+    const value = u24le(bytes, rgbsAt + i * 3);
+    addendumRgbs.push({ r: (value >> 16) & 0xff, g: (value >> 8) & 0xff, b: value & 0xff });
+  }
+  expect(u16le(bytes, rgbsAt + threadCount * 3)).toBe(0); // v6 trailer
+  expect(bytes.length).toBe(rgbsAt + threadCount * 3 + 2);
+  return { pecOffset, name, threads, transX, transY, width, height, sections, colorLog, addendumIndices, addendumRgbs };
+};
+
 // --- planToMachineOps --------------------------------------------------------
 
 describe('planToMachineOps', () => {
@@ -341,29 +470,71 @@ describe('encodeDst', () => {
 // --- PES / PEC ------------------------------------------------------------------
 
 describe('encodePes', () => {
-  it('wraps a PEC block in a truncated #PES0001 file', () => {
+  it('writes a PES v6 header whose thread table carries the exact design colors', () => {
+    const design = twoColorDesign();
+    const parsed = parsePesV6(encodePes(design, { name: 'TESTDESIGN' }));
+
+    expect(parsed.name).toBe('TESTDESIGN');
+    expect(parsed.threads).toEqual([
+      { r: 255, g: 255, b: 0, description: '#ffff00' },
+      { r: 0, g: 0, b: 0, description: '#000000' },
+    ]);
+    // Bounds are 150×150 units; the CEmbOne affine centers them on the page.
+    expect(parsed.width).toBe(150);
+    expect(parsed.height).toBe(150);
+    expect(parsed.transX).toBe(350 + 1300 / 2 - 75);
+    expect(parsed.transY).toBe(100 + 150 + 1800 / 2 - 75);
+  });
+
+  it('writes CSewSeg sections that reproduce the machine ops with true color indices', () => {
+    const design = twoColorDesign();
+    const parsed = parsePesV6(encodePes(design, { name: 'TESTDESIGN' }));
+
+    // Coordinates are relative to the design's bottom-left corner (minX -100,
+    // maxY 50): travel connectors carry both endpoints, sewn sections every
+    // stitch, and colorCode indexes the v6 thread table above.
+    expect(parsed.sections).toEqual([
+      { flag: 1, colorCode: 0, points: [{ x: 100, y: -50 }, { x: 120, y: -40 }] },
+      { flag: 0, colorCode: 0, points: [{ x: 120, y: -40 }, { x: 150, y: -50 }, { x: 150, y: 0 }] },
+      { flag: 1, colorCode: 1, points: [{ x: 150, y: 0 }, { x: 0, y: -150 }] },
+      { flag: 0, colorCode: 1, points: [{ x: 0, y: -150 }, { x: 0, y: -100 }] },
+      { flag: 1, colorCode: 1, points: [{ x: 0, y: -100 }, { x: 100, y: -150 }] },
+      { flag: 0, colorCode: 1, points: [{ x: 100, y: -150 }, { x: 130, y: -150 }] },
+    ]);
+    expect(parsed.colorLog).toEqual([
+      { section: 0, colorCode: 0 },
+      { section: 2, colorCode: 1 },
+    ]);
+  });
+
+  it('keeps the embedded PEC chart mapping and restores true RGBs in the addendum', () => {
     const design = twoColorDesign();
     const bytes = encodePes(design, { name: 'TESTDESIGN' });
+    const parsed = parsePesV6(bytes);
+    const pec = parsed.pecOffset;
 
-    expect(ascii(bytes.slice(0, 8))).toBe('#PES0001');
-    expect(u32le(bytes, 8)).toBe(0x16); // PEC block offset
-    const pec = 0x16;
     expect(ascii(bytes.slice(pec, pec + 19))).toBe('LA:TESTDESI        '); // name truncated to 8
     expect(bytes[pec + 19]).toBe(0x0d);
     expect(bytes[pec + 32]).toBe(0xff);
     expect(bytes[pec + 33]).toBe(0x00);
     expect(bytes[pec + 34]).toBe(6); // icon stride
     expect(bytes[pec + 35]).toBe(38); // icon height
-    // Thread table: count-1 then Brother chart indices (yellow, black are exact).
+    // PEC thread table: count-1 then Brother chart indices (yellow, black are exact).
     expect(bytes[pec + 48]).toBe(1);
     expect(bytes[pec + 49]).toBe(13);
     expect(bytes[pec + 50]).toBe(20);
+    // The addendum repeats those chart indices and carries the exact colors.
+    expect(parsed.addendumIndices).toEqual([13, 20]);
+    expect(parsed.addendumRgbs).toEqual([
+      { r: 255, g: 255, b: 0 },
+      { r: 0, g: 0, b: 0 },
+    ]);
   });
 
   it('round-trips stitches, trims, and color changes through PEC records', () => {
     const design = twoColorDesign();
     const bytes = encodePes(design, { name: 'TESTDESIGN' });
-    const block = 0x16 + PEC_HEADER;
+    const block = u32le(bytes, 8) + PEC_HEADER;
 
     expect(bytes[block]).toBe(0x00);
     expect(bytes[block + 1]).toBe(0x00);
@@ -387,10 +558,11 @@ describe('encodePes', () => {
   it('appends framed thumbnails: one main plus one per thread', () => {
     const design = twoColorDesign();
     const bytes = encodePes(design);
-    const block = 0x16 + PEC_HEADER;
+    const block = u32le(bytes, 8) + PEC_HEADER;
     const graphics = block + u24le(bytes, block + 2);
 
-    expect(bytes.length).toBe(graphics + ICON_BYTES * 3);
+    const addendum = 128 + 0x90 * 2 + 3 * 2 + 2; // chart indices + reserved + RGBs + trailer
+    expect(bytes.length).toBe(graphics + ICON_BYTES * 3 + addendum);
     for (let icon = 0; icon < 3; icon += 1) {
       const start = graphics + icon * ICON_BYTES;
       // Second scanline of the frame is the rounded top border: f0 ff ff ff ff 0f.
@@ -415,8 +587,9 @@ describe('encodePes', () => {
         cmd('stitch', 250, 1),
       ]),
     ], { name: 'Custom', widthMm: 500, heightMm: 500 });
-    const block = 0x16 + PEC_HEADER;
-    const { events } = parsePecStitches(encodePes(design), block + 16);
+    const bytes = encodePes(design);
+    const block = u32le(bytes, 8) + PEC_HEADER;
+    const { events } = parsePecStitches(bytes, block + 16);
     const jumps = events.filter(event => event.type === 'jump');
     expect(jumps).toHaveLength(2);
     expect(jumps.at(-1)).toMatchObject({ x: 2500, y: 0 });
@@ -477,18 +650,28 @@ describe('machine export of generated stitch plans', () => {
     expect({ x, y }).toEqual(plan.end);
   });
 
-  it('exports a digitized fill to PES with consistent structure', () => {
+  it('exports a digitized fill to PES where v6 sections and embedded PEC agree with the plan', () => {
     const design = generatedDesign();
     const plan = planToMachineOps(design);
     const bytes = encodePes(design);
-    const block = 0x16 + PEC_HEADER;
+    const parsed = parsePesV6(bytes); // asserts the full v6 structure internally
+    const block = parsed.pecOffset + PEC_HEADER;
     const { events, end } = parsePecStitches(bytes, block + 16);
 
     expect(u24le(bytes, block + 2)).toBe(end - block);
-    expect(bytes.length).toBe(block + (end - block) + ICON_BYTES * 2);
     expect(events.filter(event => event.type === 'stitch')).toHaveLength(plan.stitchCount);
     const last = events.filter(event => event.type !== 'end').at(-1);
     expect(last).toMatchObject({ x: plan.end.x, y: plan.end.y });
+
+    // The v6 sew sections reproduce the exact stitch sequence of the plan.
+    expect(parsed.threads).toEqual([{ r: 0x25, g: 0x63, b: 0xeb, description: '#2563eb' }]);
+    const sewn = parsed.sections
+      .filter(section => section.flag === 0)
+      .flatMap(section => section.points.map(point => ({
+        x: point.x + plan.bounds.minX,
+        y: point.y + plan.bounds.maxY,
+      })));
+    expect(sewn).toEqual(plan.ops.filter(op => op.type === 'stitch').map(op => ({ x: op.x, y: op.y })));
   });
 });
 
@@ -549,6 +732,9 @@ describe('machineExportPreflight', () => {
     ]);
     const warnings = machineExportPreflight(red, 'PES');
     expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe('info');
+    // v6 keeps true colors for software; only the machine display approximates.
+    expect(warnings[0].message).toContain('exact design colors');
     expect(warnings[0].message).toContain('→ Red');
   });
 });

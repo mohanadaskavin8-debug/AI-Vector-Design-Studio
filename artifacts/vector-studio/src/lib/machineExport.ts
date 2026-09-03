@@ -7,11 +7,13 @@
 // the widely machine-tested pyembroidery stack (used by Ink/Stitch):
 //   DST — 512-byte ASCII header, then ternary-coded 3-byte records
 //         (max ±121 units per record, +Y up, trims via the 3-jump convention).
-//   PES — "#PES0001" truncated v1 wrapper whose 4-byte pointer leads to a PEC
-//         block (512-byte header with palette indices, stitch section with
-//         7-bit short / 12-bit long deltas, then 48×38 px thumbnails). Brother
-//         machines stitch from the PEC block; the PES sections only matter to
-//         desktop editing software.
+//   PES — "#PES0060" (PES v6): header with exact RGB thread definitions,
+//         CEmbOne/CSewSeg sew sections, then the PEC block (512-byte header
+//         with palette indices, stitch section with 7-bit short / 12-bit long
+//         deltas, 48×38 px thumbnails) and the v6 color addendum. Brother
+//         machines stitch from the embedded PEC and approximate colors to the
+//         64-entry chart; editing software reads the v6 sections and shows the
+//         design's true colors.
 // Pure module — no DOM access — so exporters stay unit-testable.
 
 import {
@@ -187,6 +189,24 @@ const pushU16le = (out: number[], value: number) => {
 };
 const pushU24le = (out: number[], value: number) => {
   out.push(value & 0xff, (value >> 8) & 0xff, (value >> 16) & 0xff);
+};
+const pushU32le = (out: number[], value: number) => {
+  out.push(value & 0xff, (value >> 8) & 0xff, (value >> 16) & 0xff, (value >> 24) & 0xff);
+};
+const pushF32le = (out: number[], value: number) => {
+  const view = new DataView(new ArrayBuffer(4));
+  view.setFloat32(0, value, true);
+  out.push(view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3));
+};
+/** PES length-prefixed strings: u8 length (string8) / u16le length (string16). */
+const pushPesString8 = (out: number[], text: string) => {
+  const value = text.slice(0, 255);
+  out.push(value.length);
+  pushAscii(out, value);
+};
+const pushPesString16 = (out: number[], text: string) => {
+  pushU16le(out, text.length);
+  pushAscii(out, text);
 };
 const repeat = (out: number[], byte: number, count: number) => {
   for (let index = 0; index < count; index += 1) out.push(byte);
@@ -560,15 +580,212 @@ const encodePec = (plan: MachinePlan, name: string | undefined): number[] => [
   ...encodePecGraphics(plan),
 ];
 
+// --- PES v6 sew sections ------------------------------------------------------
+// Layout mirrors the reference writer's write_version_6: a v6 header carrying
+// full RGB thread definitions, one CEmbOne/CSewSeg block pair with the flat
+// stitch geometry, a node/order table, the PEC block machines stitch from, and
+// the color addendum. Editing software reads its palette from the v6 thread
+// table, so exact design colors survive even though the PEC block still maps
+// to the 64-entry Brother chart.
+
+interface PesSewSection {
+  /** 0 = sewn polyline, 1 = jump/travel connector. */
+  flag: 0 | 1;
+  /** 0-based index into the v6 thread table (first occurrence of the color). */
+  colorCode: number;
+  points: Point[];
+}
+
+/**
+ * Group machine ops into CSewSeg sections: consecutive stitches form one sewn
+ * section, a travel (with any split continuations) becomes a two-point jump
+ * section, and color changes advance the thread without emitting a section.
+ * The color log records the section index of every thread transition.
+ */
+const buildSewSections = (plan: MachinePlan): {
+  sections: PesSewSection[];
+  colorLog: { section: number; colorCode: number }[];
+} => {
+  const sections: PesSewSection[] = [];
+  let threadIndex = 0;
+  let position: Point = { x: 0, y: 0 };
+  let previousType: 'jump' | 'stitch' | null = null;
+  for (const op of plan.ops) {
+    if (op.type === 'color-change') {
+      threadIndex = Math.min(threadIndex + 1, plan.threads.length - 1);
+      previousType = null;
+      continue;
+    }
+    const colorCode = plan.threads.indexOf(plan.threads[threadIndex]);
+    const point = { x: op.x, y: op.y };
+    if (op.type === 'jump') {
+      // Consecutive travels extend the same connector to its final landing.
+      if (previousType === 'jump') sections.at(-1)!.points[1] = point;
+      else sections.push({ flag: 1, colorCode, points: [{ ...position }, point] });
+    } else if (previousType === 'stitch') {
+      sections.at(-1)!.points.push(point);
+    } else {
+      sections.push({ flag: 0, colorCode, points: [point] });
+    }
+    position = point;
+    previousType = op.type;
+  }
+  const colorLog: { section: number; colorCode: number }[] = [];
+  sections.forEach((section, index) => {
+    if (!colorLog.length || colorLog.at(-1)!.colorCode !== section.colorCode) {
+      colorLog.push({ section: index, colorCode: section.colorCode });
+    }
+  });
+  return { sections, colorLog };
+};
+
+const writePesHeaderV6 = (out: number[], plan: MachinePlan, name: string | undefined) => {
+  pushU16le(out, 0x01); // Hoop size indicator.
+  pushAscii(out, '02'); // Two-digit ASCII subversion.
+  pushPesString8(out, sanitizeName(name, 16)); // Design name.
+  repeat(out, 0x00, 4); // Empty category / author / keywords / comments strings.
+  // Design page settings, verbatim from the reference writer (editing software
+  // treats these as workspace preferences, not design geometry).
+  const settings = [
+    0x00, // OptimizeHoopChange = false
+    0x00, // DesignPageIsCustom = false
+    0x64, // hoop width (mm)
+    0x64, // hoop height (mm)
+    0x00, // UseExistingDesignArea = false
+    0xc8, // design width
+    0xc8, // design height
+    0x64, // design page section width
+    0x64, // design page section height
+    0x64, // p6
+    0x07, // design page background color
+    0x13, // design page foreground color
+    0x01, // ShowGrid
+    0x01, // WithAxes
+    0x00, // SnapToGrid
+    100,  // GridInterval
+    0x01, // p9
+    0x00, // OptimizeEntryExitPoints
+  ];
+  settings.forEach(value => pushU16le(out, value));
+  out.push(0x00); // No from-image filename.
+  [1, 0, 0, 1, 0, 0].forEach(value => pushF32le(out, value)); // Identity image affine.
+  pushU16le(out, 0); // No programmable fill patterns.
+  pushU16le(out, 0); // No motif patterns.
+  pushU16le(out, 0); // No feather patterns.
+  // The thread table carrying the design's true colors: one entry per thread
+  // block, exact RGB plus the hex code as the thread description.
+  pushU16le(out, plan.threads.length);
+  for (const hex of plan.threads) {
+    const { r, g, b } = parseHexColor(hex);
+    out.push(0x00); // Empty catalog number.
+    out.push(r, g, b, 0x00);
+    pushU32le(out, 0x0a); // Thread type: custom color.
+    pushPesString8(out, hex);
+    out.push(0x00, 0x00); // Empty brand / chart strings.
+  }
+  pushU16le(out, 1); // One distinct block object (the CEmbOne below).
+};
+
+const writeEmbOne = (out: number[], plan: MachinePlan, sectionCount: number) => {
+  pushPesString16(out, 'CEmbOne');
+  const width = plan.bounds.maxX - plan.bounds.minX;
+  const height = plan.bounds.maxY - plan.bounds.minY;
+  repeat(out, 0x00, 16); // Two unused bounding rectangles.
+  [1, 0, 0, 1].forEach(value => pushF32le(out, value)); // Identity scale/rotation.
+  // Translation centering the design on the reference writer's 130×180 page.
+  pushF32le(out, 350 + 1300 / 2 - width / 2);
+  pushF32le(out, 100 + height + 1800 / 2 - height / 2);
+  pushU16le(out, 1);
+  pushU16le(out, 0);
+  pushU16le(out, 0);
+  pushU16le(out, width);
+  pushU16le(out, height);
+  repeat(out, 0x00, 8);
+  pushU16le(out, sectionCount);
+};
+
+const writeSewSeg = (
+  out: number[],
+  bounds: MachinePlan['bounds'],
+  sections: PesSewSection[],
+  colorLog: { section: number; colorCode: number }[],
+) => {
+  pushPesString16(out, 'CSewSeg');
+  // Section coordinates are relative to the design's bottom-left corner:
+  // x in [0, width], y in [-height, 0] (two's complement in the u16 write).
+  const adjustX = bounds.minX;
+  const adjustY = bounds.maxY;
+  sections.forEach((section, index) => {
+    if (index > 0) pushU16le(out, 0x8003); // Section separator.
+    pushU16le(out, section.flag);
+    pushU16le(out, section.colorCode);
+    pushU16le(out, section.points.length);
+    for (const point of section.points) {
+      pushU16le(out, point.x - adjustX);
+      pushU16le(out, point.y - adjustY);
+    }
+  });
+  pushU16le(out, colorLog.length);
+  for (const entry of colorLog) {
+    pushU16le(out, entry.section);
+    pushU16le(out, entry.colorCode);
+  }
+};
+
+/**
+ * v6 color addendum after the PEC block: the PEC chart-index list — including
+ * its leading count-1 byte, exactly as it appears in the PEC header — padded
+ * with 0x20 to 128 bytes, a 0x90-byte reserved block per thread, then each
+ * thread's true color as a 24-bit little-endian RGB value, and a u16 trailer.
+ * Verified byte-identical to pyembroidery's write_version_6 output for the
+ * same design (its write_pec_header returns the index list with the count-1
+ * byte already inserted at position 0, and write_pes_addendum writes that
+ * list verbatim).
+ */
+const writePesAddendum = (out: number[], plan: MachinePlan) => {
+  const { indices } = assignPecThreads(plan.threads);
+  const list = [indices.length - 1, ...indices];
+  out.push(...list);
+  repeat(out, 0x20, 128 - list.length);
+  repeat(out, 0x00, 0x90 * plan.threads.length);
+  for (const hex of plan.threads) {
+    const { r, g, b } = parseHexColor(hex);
+    pushU24le(out, (r << 16) | (g << 8) | b);
+  }
+};
+
 export const encodePes = (design: EmbroideryDesign, options: MachineExportOptions = {}): Uint8Array<ArrayBuffer> => {
   const plan = planToMachineOps(design);
   requireStitches(plan);
   const out: number[] = [];
-  pushAscii(out, '#PES0001');
-  // Truncated v1 wrapper: PEC block at fixed offset 0x16, no PES sew sections.
-  out.push(0x16, 0x00, 0x00, 0x00);
-  repeat(out, 0x00, 10);
+  pushAscii(out, '#PES0060');
+  const pecOffsetAt = out.length;
+  pushU32le(out, 0); // Patched below once the PEC block position is known.
+  writePesHeaderV6(out, plan, options.name);
+  pushU16le(out, 0xffff);
+  pushU16le(out, 0x0000); // FFFF 0000: sew section blocks follow.
+  const { sections, colorLog } = buildSewSections(plan);
+  writeEmbOne(out, plan, sections.length);
+  pushU16le(out, 0xffff);
+  pushU16le(out, 0x0000);
+  writeSewSeg(out, plan.bounds, sections, colorLog);
+  pushU16le(out, 0x0000);
+  pushU16le(out, 0x0000); // 0000 0000: no more blocks.
+  // v6 node/order table: one identity entry per color transition.
+  pushU32le(out, 0);
+  pushU32le(out, 0);
+  colorLog.forEach((_, index) => {
+    pushU32le(out, index);
+    pushU32le(out, 0);
+  });
+  const pecStart = out.length;
+  out[pecOffsetAt] = pecStart & 0xff;
+  out[pecOffsetAt + 1] = (pecStart >> 8) & 0xff;
+  out[pecOffsetAt + 2] = (pecStart >> 16) & 0xff;
+  out[pecOffsetAt + 3] = (pecStart >> 24) & 0xff;
   out.push(...encodePec(plan, options.name));
+  writePesAddendum(out, plan);
+  pushU16le(out, 0x0000); // v6 trailer.
   return Uint8Array.from(out);
 };
 
@@ -613,8 +830,8 @@ export const machineExportPreflight = (design: EmbroideryDesign, format: Machine
     if (approximate.length) {
       warnings.push({
         severity: 'info',
-        message: `PES stores thread colors as the nearest Brother chart entries: ${approximate.map(a => `${a.hex} → ${a.paletteName}`).join(', ')}.`,
-        recommendation: 'Expect slightly different color names on the machine display.',
+        message: `Editing software sees the exact design colors (stored in the PES 6 sections); only the machine's own display approximates them to the Brother chart: ${approximate.map(a => `${a.hex} → ${a.paletteName}`).join(', ')}.`,
+        recommendation: 'No action needed — expect the chart names above on the machine display only.',
       });
     }
   }
