@@ -4,6 +4,8 @@ import { parsePathContours, nodesToSVGPath, contoursBounds, PathContour } from '
 export const EMBROIDERY_PX_PER_MM = 96 / 25.4;
 export const MAX_REGION_COMMANDS = 20_000;
 export const MAX_PLAN_COMMANDS = 35_000;
+/** Conservative satin span limit: preflight warns when a satin region's bounds exceed it. */
+export const SATIN_SPAN_LIMIT_MM = 12;
 
 export type StitchType = 'fill' | 'satin' | 'running';
 export type UnderlayType = 'none' | 'center-run' | 'edge-run' | 'zigzag';
@@ -487,6 +489,20 @@ const generateUnderlay = (object: VectorObject, settings: StitchRegionSettings) 
 
 export const getGeometryQuality = (object: VectorObject) => outlinePoints(object);
 
+/**
+ * World-space closed contours of an object's stitchable area. Paths keep
+ * every subpath (letters with counters); primitives contribute their single
+ * outline. Open geometry yields nothing — it has no fillable ink to measure.
+ */
+export const getStitchContours = (object: VectorObject): PathContour[] => {
+  if (object.type === 'path') {
+    return pathWorldContours(object).contours.filter(contour => contour.closed && contour.points.length >= 3);
+  }
+  const outline = outlinePoints(object);
+  if (!outline.closed || outline.points.length < 3) return [];
+  return [{ points: outline.points, closed: true }];
+};
+
 export function generateStitches(object: VectorObject, settings: StitchRegionSettings): StitchCommand[] {
   const normalized: StitchRegionSettings = {
     ...settings,
@@ -666,7 +682,7 @@ export function inspectEmbroidery(design: EmbroideryDesign): PreflightWarning[] 
     if (region.settings.density < 0.3) warnings.push({ severity: 'warning', message: `${region.name} uses dense ${region.settings.density.toFixed(2)} mm row spacing.`, recommendation: 'Test for puckering and thread buildup on the target fabric.' });
     if (region.settings.density > 0.8 && region.settings.stitchType !== 'running') warnings.push({ severity: 'warning', message: `${region.name} uses sparse ${region.settings.density.toFixed(2)} mm row spacing.`, recommendation: 'Inspect coverage and reduce spacing if fabric shows through.' });
     if (region.geometryQuality === 'approximate') warnings.push({ severity: 'info', message: `${region.name} uses approximate source geometry.`, recommendation: region.geometryNote || 'Inspect the stitch preview closely.' });
-    if (region.settings.stitchType === 'satin' && Math.max(region.bounds.width, region.bounds.height) / EMBROIDERY_PX_PER_MM > 12) warnings.push({ severity: 'warning', message: `${region.name} exceeds a conservative 12 mm satin span.`, recommendation: 'Use a fill stitch or split the satin column.' });
+    if (region.settings.stitchType === 'satin' && Math.max(region.bounds.width, region.bounds.height) / EMBROIDERY_PX_PER_MM > SATIN_SPAN_LIMIT_MM) warnings.push({ severity: 'warning', message: `${region.name} exceeds a conservative ${SATIN_SPAN_LIMIT_MM} mm satin span.`, recommendation: 'Use a fill stitch or split the satin column.' });
   });
   if (metrics.longestJumpMm > 12) warnings.push({ severity: 'warning', message: `Longest jump is ${metrics.longestJumpMm.toFixed(1)} mm.`, recommendation: 'Reorder regions or add a trim before long travel.' });
   if (metrics.colorCount > 8) warnings.push({ severity: 'warning', message: `${metrics.colorCount} thread colors create frequent setup changes.`, recommendation: 'Consolidate similar colors where the artwork permits.' });

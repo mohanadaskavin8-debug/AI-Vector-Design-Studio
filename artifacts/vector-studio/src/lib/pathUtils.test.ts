@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parsePathContours, contoursBounds, pointInContoursEvenOdd } from './pathUtils';
+import { parsePathContours, contoursBounds, pointInContoursEvenOdd, estimateInkWidth } from './pathUtils';
 
 // Square ring: outer 100x100 square with a 40x40 hole in the middle.
 const RING = 'M 0 0 L 100 0 L 100 100 L 0 100 Z M 30 30 L 70 30 L 70 70 L 30 70 Z';
@@ -73,6 +73,71 @@ describe('parsePathContours', () => {
     expect(contours).toHaveLength(1);
     const bounds = contoursBounds(contours);
     expect(bounds.width).toBeCloseTo(100, 0);
+  });
+});
+
+describe('estimateInkWidth', () => {
+  const rect = (x: number, y: number, w: number, h: number) =>
+    `M ${x} ${y} L ${x + w} ${y} L ${x + w} ${y + h} L ${x} ${y + h} Z`;
+
+  it('recovers the wall thickness of a square ring (counter subtracts area, adds perimeter)', () => {
+    // Outer 100x100, inner 90x90 → a 5-unit wall on every side.
+    const estimate = estimateInkWidth(parsePathContours(`${rect(0, 0, 100, 100)} ${rect(5, 5, 90, 90)}`))!;
+    expect(estimate.width).toBeCloseTo(5, 1);
+    expect(estimate.elongation).toBeGreaterThan(10);
+  });
+
+  it('recovers the wall thickness of a round O-glyph ring regardless of winding', () => {
+    // Outer R=30 and inner r=20 circles swept the same direction: only
+    // even-odd nesting depth (not winding order) makes the inner a hole.
+    const ring = 'M 60 30 A 30 30 0 1 1 0 30 A 30 30 0 1 1 60 30 Z M 50 30 A 20 20 0 1 1 10 30 A 20 20 0 1 1 50 30 Z';
+    const estimate = estimateInkWidth(parsePathContours(ring))!;
+    expect(Math.abs(estimate.width - 10)).toBeLessThan(0.5);
+    expect(estimate.elongation).toBeGreaterThan(4);
+  });
+
+  it('approximates the stroke width of an I-shaped bar', () => {
+    const estimate = estimateInkWidth(parsePathContours(rect(0, 0, 10, 60)))!;
+    expect(estimate.width).toBeGreaterThan(8);
+    expect(estimate.width).toBeLessThanOrEqual(10);
+    expect(estimate.elongation).toBeGreaterThan(2);
+  });
+
+  it('measures an H-shaped glyph outline (one contour with notches)', () => {
+    // Two 10-wide stems joined by a 10-tall crossbar.
+    const h = 'M 0 0 L 10 0 L 10 25 L 30 25 L 30 0 L 40 0 L 40 60 L 30 60 L 30 35 L 10 35 L 10 60 L 0 60 Z';
+    const estimate = estimateInkWidth(parsePathContours(h))!;
+    expect(estimate.width).toBeGreaterThan(8.5);
+    expect(estimate.width).toBeLessThan(10.5);
+    expect(estimate.elongation).toBeGreaterThan(3);
+  });
+
+  it('treats disjoint strokes (= sign) as additive parallel bars', () => {
+    const estimate = estimateInkWidth(parsePathContours(`${rect(0, 0, 60, 8)} ${rect(0, 20, 60, 8)}`))!;
+    expect(estimate.area).toBeCloseTo(960, 0);
+    expect(estimate.width).toBeGreaterThan(6);
+    expect(estimate.width).toBeLessThan(8.01);
+  });
+
+  it('adds islands nested at even depth back in (ring with a solid center)', () => {
+    const contours = parsePathContours(`${rect(0, 0, 100, 100)} ${rect(5, 5, 90, 90)} ${rect(40, 40, 20, 20)}`);
+    const estimate = estimateInkWidth(contours)!;
+    expect(estimate.area).toBeCloseTo(1900 + 400, 0);
+  });
+
+  it('reports solid blobs as wide, not stroke-like', () => {
+    const square = estimateInkWidth(parsePathContours(rect(0, 0, 100, 100)))!;
+    expect(square.width).toBeCloseTo(50, 1);
+    expect(square.elongation).toBeLessThan(1.6);
+
+    const circle = estimateInkWidth(parsePathContours('M 100 50 A 50 50 0 1 1 0 50 A 50 50 0 1 1 100 50 Z'))!;
+    expect(circle.width).toBeGreaterThan(48);
+    expect(circle.elongation).toBeLessThan(1.1);
+  });
+
+  it('returns null when there is nothing closed to measure', () => {
+    expect(estimateInkWidth([])).toBeNull();
+    expect(estimateInkWidth(parsePathContours('M 0 0 L 50 25'))).toBeNull();
   });
 });
 

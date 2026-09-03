@@ -9,14 +9,18 @@ import type { VectorObject } from './types';
 import { generateId } from './utils';
 import {
   StitchRegion,
+  StitchRegionSettings,
   generateStitches,
   getGeometryQuality,
+  getStitchContours,
   commandsBounds,
   computeSourceFingerprint,
   MAX_PLAN_COMMANDS,
   EMBROIDERY_PX_PER_MM,
+  SATIN_SPAN_LIMIT_MM,
   HoopSettings,
 } from './embroidery';
+import { contoursBounds, estimateInkWidth } from './pathUtils';
 
 export type DigitizeSkipReason =
   | 'hidden'
@@ -40,6 +44,8 @@ export interface DigitizeConverted {
   regionId: string;
   stitchType: string;
   stitches: number;
+  /** Present when the narrow-shape heuristic defaulted this region to satin instead of fill. */
+  autoSatin?: SatinAssessment;
 }
 
 export interface SmartDigitizeInput {
@@ -108,6 +114,94 @@ export const listConvertibleText = (objects: VectorObject[], selection: string[]
     .filter(object => object.type === 'text' && object.visible && !object.locked)
     .map(object => ({ id: object.id, name: object.name, fontFamily: object.fontFamily, fontWeight: object.fontWeight }));
 
+// ---------------------------------------------------------------------------
+// Narrow-shape satin heuristic
+//
+// Thin closed shapes — letter strokes from "Convert to outlines", thin rings,
+// narrow bars — cover poorly with a tatami fill but stitch cleanly as satin
+// columns. A shape qualifies when its effective ink width (even-odd aware, so
+// letter counters count) sits in the satin-friendly band, its geometry is
+// consistently narrow rather than a solid blob, and its overall bounds stay
+// inside the existing conservative satin-span preflight rule.
+// ---------------------------------------------------------------------------
+
+/** Narrowest ink width that satin covers better than fill. */
+export const SATIN_MIN_WIDTH_MM = 1;
+/** Widest ink width a single satin column handles cleanly. */
+export const SATIN_MAX_WIDTH_MM = 8;
+/**
+ * Minimum isoperimetric elongation (perimeter²/4π·area) for "consistently
+ * narrow". Solid blobs sit near 1 (circle) to 1.27 (square); 1.6 admits bars
+ * from roughly 2.7:1 aspect up, rings, and letterforms while leaving compact
+ * solids on the fill default.
+ */
+export const SATIN_MIN_ELONGATION = 1.6;
+/** Default pull compensation applied by both digitize flows (mm per side). */
+const DEFAULT_PULL_COMPENSATION_MM = 0.2;
+/**
+ * Auto-satin bounds gate: pull compensation widens stitched bounds by up to
+ * one pull per side, so staying this far under the preflight limit guarantees
+ * an auto-chosen satin region never triggers the satin-span warning.
+ */
+export const SATIN_AUTO_SPAN_LIMIT_MM = SATIN_SPAN_LIMIT_MM - 2 * DEFAULT_PULL_COMPENSATION_MM;
+
+export interface SatinAssessment {
+  /** Estimated ink width in millimetres (e.g. letter stroke or ring wall thickness). */
+  widthMm: number;
+}
+
+/**
+ * Decides whether a closed shape should default to satin instead of fill.
+ * Works on multi-contour paths (letters with counters), not just primitives.
+ * Returns the estimated ink width when satin is the better default, or null
+ * to keep the fill default.
+ */
+export const assessSatinCandidate = (object: VectorObject): SatinAssessment | null => {
+  const contours = getStitchContours(object);
+  const estimate = estimateInkWidth(contours);
+  if (!estimate) return null;
+  const widthMm = estimate.width / EMBROIDERY_PX_PER_MM;
+  if (widthMm < SATIN_MIN_WIDTH_MM || widthMm > SATIN_MAX_WIDTH_MM) return null;
+  if (estimate.elongation < SATIN_MIN_ELONGATION) return null;
+  const bounds = contoursBounds(contours);
+  const maxDimensionMm = Math.max(bounds.width, bounds.height) / EMBROIDERY_PX_PER_MM;
+  if (maxDimensionMm > SATIN_AUTO_SPAN_LIMIT_MM) return null;
+  return { widthMm };
+};
+
+/** True for shapes stitched as an outline run rather than a filled area. */
+export const isStrokeOnlyObject = (object: VectorObject): boolean =>
+  object.fill === 'none' || object.fill === '' || object.type === 'line' || (object.type === 'path' && !object.closed);
+
+export interface RegionDefaults {
+  settings: StitchRegionSettings;
+  /** Set when the narrow-shape heuristic switched the fill default to satin. */
+  autoSatin: SatinAssessment | null;
+}
+
+/**
+ * Default stitch settings for a shape — shared by the manual "Digitize
+ * Selection" flow and the smart digitize pass so the two never diverge.
+ * Closed shapes default to fill unless they are consistently narrow, in which
+ * case a satin column covers them better (see assessSatinCandidate).
+ */
+export const buildDefaultRegionSettings = (object: VectorObject): RegionDefaults => {
+  const strokeOnly = isStrokeOnlyObject(object);
+  const autoSatin = strokeOnly ? null : assessSatinCandidate(object);
+  return {
+    settings: {
+      stitchType: strokeOnly ? 'running' : autoSatin ? 'satin' : 'fill',
+      density: 0.4,
+      angle: 45,
+      underlay: strokeOnly ? 'none' : 'edge-run',
+      pullCompensation: DEFAULT_PULL_COMPENSATION_MM,
+      stitchLength: 2.5,
+      color: { hex: object.fill !== 'none' && object.fill ? object.fill : (object.stroke !== 'none' && object.stroke ? object.stroke : '#ffffff') },
+    },
+    autoSatin,
+  };
+};
+
 const planCommandTotal = (regions: StitchRegion[]) =>
   regions.reduce((total, region) => total + region.commands.length, 0);
 
@@ -156,18 +250,12 @@ export function runSmartDigitize(input: SmartDigitizeInput): SmartDigitizeResult
     }
 
     // From here on, mirror the manual digitize defaults exactly.
-    const isStrokeOnly = object.fill === 'none' || object.fill === '' || object.type === 'line' || (object.type === 'path' && !object.closed);
     const existingIdx = regions.findIndex(region => region.sourceObjectId === object.id);
     const existing = existingIdx >= 0 ? regions[existingIdx] : null;
-    const settings = existing ? existing.settings : {
-      stitchType: isStrokeOnly ? 'running' as const : 'fill' as const,
-      density: 0.4,
-      angle: 45,
-      underlay: isStrokeOnly ? 'none' as const : 'edge-run' as const,
-      pullCompensation: 0.2,
-      stitchLength: 2.5,
-      color: { hex: object.fill !== 'none' && object.fill ? object.fill : (object.stroke !== 'none' && object.stroke ? object.stroke : '#ffffff') },
-    };
+    // Existing regions keep their settings — a user who switched a region back
+    // to fill (or anything else) is never overridden by the satin heuristic.
+    const defaults = existing ? null : buildDefaultRegionSettings(object);
+    const settings = existing ? existing.settings : defaults!.settings;
 
     let commands;
     try {
@@ -218,6 +306,7 @@ export function runSmartDigitize(input: SmartDigitizeInput): SmartDigitizeResult
       regionId: region.id,
       stitchType: settings.stitchType,
       stitches: commands.filter(command => command.type === 'stitch').length,
+      ...(defaults?.autoSatin ? { autoSatin: defaults.autoSatin } : {}),
     });
   });
 

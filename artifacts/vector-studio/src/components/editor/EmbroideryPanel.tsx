@@ -6,6 +6,7 @@ import { generateId } from '../../lib/utils';
 import { StitchRegion, generateStitches, computeMetrics, inspectEmbroidery, commandsBounds, getGeometryQuality, EmbroideryGenerationError, computeSourceFingerprint, isRegionStale } from '../../lib/embroidery';
 import { encodeDst, encodePes, machineExportPreflight, MachineExportFormat } from '../../lib/machineExport';
 import { useAssistStore, dismissAssistSummary, clearAssistError } from '../../store/assist';
+import { buildDefaultRegionSettings } from '../../lib/digitize';
 import { startAssistedDigitize } from '../../lib/assistedFlow';
 import { openPlayback } from '../../store/playback';
 
@@ -34,6 +35,7 @@ export default function EmbroideryPanel() {
      let currentRegions = [...design.regions];
       let noticeSkipped = 0;
       const generationErrors: string[] = [];
+      const satinNotes: string[] = [];
      
      objects.forEach(obj => {
          if (!selection.includes(obj.id)) return;
@@ -47,21 +49,15 @@ export default function EmbroideryPanel() {
            return;
         }
 
-         const isStrokeOnly = obj.fill === 'none' || obj.fill === '' || obj.type === 'line' || (obj.type === 'path' && !obj.closed);
-        
         // Find existing region for this source, or create new
         const existingIdx = currentRegions.findIndex(r => r.sourceObjectId === obj.id);
         const existing = existingIdx >= 0 ? currentRegions[existingIdx] : null;
 
-        const settings = existing ? existing.settings : {
-           stitchType: isStrokeOnly ? 'running' as const : 'fill' as const,
-           density: 0.4,
-           angle: 45,
-           underlay: isStrokeOnly ? 'none' as const : 'edge-run' as const,
-           pullCompensation: 0.2,
-           stitchLength: 2.5,
-           color: { hex: obj.fill !== 'none' && obj.fill ? obj.fill : (obj.stroke !== 'none' && obj.stroke ? obj.stroke : '#ffffff') }
-        };
+        // Shared defaults (same as the assisted flow): thin closed shapes
+        // default to satin columns; existing regions keep their settings.
+        const defaults = existing ? null : buildDefaultRegionSettings(obj);
+        const settings = existing ? existing.settings : defaults!.settings;
+        if (defaults?.autoSatin) satinNotes.push(`${obj.name} (\u2248${defaults.autoSatin.widthMm.toFixed(1)} mm)`);
         
          let cmds;
          try {
@@ -98,7 +94,10 @@ export default function EmbroideryPanel() {
       const skippedNotice = noticeSkipped > 0
         ? `Skipped ${noticeSkipped} layer${noticeSkipped === 1 ? '' : 's'}. Hidden/locked layers are excluded; convert text to paths or trace raster images first.`
         : `${selection.length} selected layer${selection.length === 1 ? '' : 's'} digitized or refreshed.`;
-      setDigitizeNotice([skippedNotice, ...generationErrors].join(' '));
+      const satinNotice = satinNotes.length > 0
+        ? `Thin shapes defaulted to satin columns: ${satinNotes.join(', ')}. Switch any back to fill in Properties.`
+        : '';
+      setDigitizeNotice([skippedNotice, satinNotice, ...generationErrors].filter(Boolean).join(' '));
       if (!design.hoop.centerX || !design.hoop.centerY) {
         setHoop({ ...design.hoop, centerX: artboard.width / 2, centerY: artboard.height / 2 });
       }
@@ -311,6 +310,17 @@ export default function EmbroideryPanel() {
                     >
                       <Play size={11} /> Watch stitch-out
                     </button>
+                  )}
+                  {assist.summary.converted.some(entry => entry.autoSatinWidthMm != null) && (
+                    <div className="space-y-1 pt-1 border-t border-white/5">
+                      <div className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">Satin applied</div>
+                      {assist.summary.converted.filter(entry => entry.autoSatinWidthMm != null).map((entry, i) => (
+                        <p key={i} className="text-[9px] text-muted-foreground leading-tight">
+                          <span className="text-foreground">{entry.name}</span> {'\u2014'} consistently {'\u2248'}{entry.autoSatinWidthMm!.toFixed(1)} mm across, so a satin column covers it more cleanly than fill.
+                        </p>
+                      ))}
+                      <p className="text-[9px] text-muted-foreground leading-tight">Prefer fill? Switch any region{'\u2019'}s stitch type in the Properties tab.</p>
+                    </div>
                   )}
                   {assist.summary.skipped.length > 0 && (
                     <div className="space-y-1 pt-1 border-t border-white/5">

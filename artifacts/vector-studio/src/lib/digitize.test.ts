@@ -1,4 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import type { Font } from 'opentype.js';
 import {
   runSmartDigitize,
   isBackgroundLikeRect,
@@ -6,8 +9,12 @@ import {
   listConvertibleText,
   fitHoopToPlan,
   HOOP_PRESETS,
+  assessSatinCandidate,
+  buildDefaultRegionSettings,
 } from './digitize';
-import { StitchRegion, EMBROIDERY_PX_PER_MM } from './embroidery';
+import { StitchRegion, EMBROIDERY_PX_PER_MM, inspectEmbroidery, getStitchContours } from './embroidery';
+import { estimateInkWidth } from './pathUtils';
+import { buildTextOutline } from './textOutline';
 import type { VectorObject } from './types';
 
 const ARTBOARD = { width: 800, height: 600 };
@@ -202,6 +209,188 @@ describe('runSmartDigitize', () => {
     const result = smartDigitize([inScope, outOfScope], { selection: [inScope.id], existingRegions: [foreign] });
     expect(result.regions.map(region => region.id)).toContain('foreign');
     expect(result.converted.map(entry => entry.id)).toEqual([inScope.id]);
+  });
+});
+
+describe('narrow-shape satin defaults', () => {
+  const px = (mm: number) => mm * EMBROIDERY_PX_PER_MM;
+
+  /** Circle-ring path data (two same-sweep arc contours; even-odd hole). */
+  const ringPathData = (cx: number, cy: number, outer: number, inner: number) =>
+    `M ${cx + outer} ${cy} A ${outer} ${outer} 0 1 1 ${cx - outer} ${cy} A ${outer} ${outer} 0 1 1 ${cx + outer} ${cy} Z ` +
+    `M ${cx + inner} ${cy} A ${inner} ${inner} 0 1 1 ${cx - inner} ${cy} A ${inner} ${inner} 0 1 1 ${cx + inner} ${cy} Z`;
+
+  /** 10 mm ring with a 1.5 mm wall — a thin-ring satin candidate. */
+  const thinRing = () => makeObj({
+    type: 'path',
+    name: 'Thin Ring',
+    x: 0,
+    y: 0,
+    width: px(10),
+    height: px(10),
+    points: ringPathData(px(5), px(5), px(5), px(3.5)),
+    closed: true,
+  });
+
+  it('defaults a thin ring path to satin and reports the estimated width', () => {
+    const result = smartDigitize([thinRing()]);
+    expect(result.regions).toHaveLength(1);
+    const region = result.regions[0];
+    expect(region.settings.stitchType).toBe('satin');
+    // Everything except the stitch type still matches the fill defaults.
+    expect(region.settings.density).toBe(0.4);
+    expect(region.settings.angle).toBe(45);
+    expect(region.settings.underlay).toBe('edge-run');
+    expect(region.settings.pullCompensation).toBe(0.2);
+    expect(result.converted[0].stitchType).toBe('satin');
+    expect(result.converted[0].autoSatin).toBeDefined();
+    expect(result.converted[0].autoSatin!.widthMm).toBeGreaterThan(1.2);
+    expect(result.converted[0].autoSatin!.widthMm).toBeLessThan(1.8);
+  });
+
+  it('defaults a narrow rectangle to satin', () => {
+    const bar = makeObj({ type: 'rect', name: 'Bar', x: 200, y: 200, width: px(10), height: px(2.5) });
+    expect(assessSatinCandidate(bar)?.widthMm).toBeCloseTo(2, 0);
+    const result = smartDigitize([bar]);
+    expect(result.regions[0].settings.stitchType).toBe('satin');
+  });
+
+  it('never lets an auto-satin default trigger the 12 mm satin-span preflight warning', () => {
+    const result = smartDigitize([
+      thinRing(),
+      makeObj({ type: 'rect', name: 'Bar', x: 200, y: 200, width: px(10), height: px(2.5) }),
+    ]);
+    expect(result.regions.every(region => region.settings.stitchType === 'satin')).toBe(true);
+    const warnings = inspectEmbroidery({
+      regions: result.regions,
+      hoop: { name: '100x100', widthMm: 100, heightMm: 100 },
+      threadPalette: [],
+      exporters: [],
+    });
+    expect(warnings.filter(warning => warning.message.includes('satin span'))).toHaveLength(0);
+  });
+
+  it('keeps long narrow bars on fill — satin would exceed the existing span rule', () => {
+    const longBar = makeObj({ type: 'rect', name: 'Long Bar', x: 0, y: 0, width: px(40), height: px(2) });
+    expect(assessSatinCandidate(longBar)).toBeNull();
+    const result = smartDigitize([longBar]);
+    expect(result.regions[0].settings.stitchType).toBe('fill');
+    expect(result.converted[0].autoSatin).toBeUndefined();
+  });
+
+  it('keeps wide shapes on the fill default', () => {
+    // 26 mm circle: wide in every direction.
+    expect(assessSatinCandidate(makeObj({}))).toBeNull();
+    // 20 mm square: ~10 mm effective width is beyond the satin band.
+    expect(assessSatinCandidate(makeObj({ type: 'rect', width: px(20), height: px(20) }))).toBeNull();
+    // 8 mm dot: small, but a compact blob rather than a consistent stroke.
+    expect(assessSatinCandidate(makeObj({ type: 'ellipse', width: px(8), height: px(8) }))).toBeNull();
+    const result = smartDigitize([makeObj({ name: 'Big Dot' })]);
+    expect(result.regions[0].settings.stitchType).toBe('fill');
+  });
+
+  it('leaves stroke-only shapes on running stitch however narrow they are', () => {
+    const openPath = makeObj({
+      type: 'path',
+      name: 'Open Stroke',
+      fill: 'none',
+      stroke: '#00d9ff',
+      points: `M 0 0 L ${px(10)} 0`,
+      closed: false,
+      width: px(10),
+      height: 1,
+    });
+    const defaults = buildDefaultRegionSettings(openPath);
+    expect(defaults.settings.stitchType).toBe('running');
+    expect(defaults.autoSatin).toBeNull();
+  });
+
+  it('never overrides an existing region the user switched back to fill', () => {
+    const ring = thinRing();
+    const existing: StitchRegion = {
+      id: 'keep',
+      sourceObjectId: ring.id,
+      sourceType: 'path',
+      name: 'Stitch Region (Thin Ring)',
+      visible: true,
+      settings: {
+        stitchType: 'fill',
+        density: 0.4,
+        angle: 45,
+        underlay: 'edge-run',
+        pullCompensation: 0.2,
+        stitchLength: 2.5,
+        color: { hex: '#ff6b9d' },
+      },
+      commands: [],
+      bounds: { x: 0, y: 0, width: 0, height: 0 },
+      geometryQuality: 'exact',
+    };
+    const result = smartDigitize([ring], { existingRegions: [existing] });
+    expect(result.regions[0].settings.stitchType).toBe('fill');
+    expect(result.converted[0].autoSatin).toBeUndefined();
+  });
+});
+
+describe('satin heuristic on real converted lettering (Inter)', () => {
+  const require = createRequire(import.meta.url);
+  let inter: Font;
+
+  beforeAll(async () => {
+    const opentype = await import('opentype.js');
+    const buffer = readFileSync(require.resolve('@fontsource/inter/files/inter-latin-400-normal.woff'));
+    const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
+    inter = opentype.parse(arrayBuffer);
+  });
+
+  const outlineObject = (text: string, fontSize: number): VectorObject => {
+    const source = makeObj({
+      type: 'text',
+      name: `${text} text`,
+      x: 0,
+      y: 0,
+      width: 400,
+      height: fontSize * 1.5,
+      text,
+      fontSize,
+      fontFamily: 'Inter',
+      fontWeight: '400',
+    });
+    const outline = buildTextOutline(source, inter);
+    return makeObj({
+      type: 'path',
+      name: `${text} outline`,
+      points: outline.pathData,
+      closed: true,
+      x: outline.bounds.x,
+      y: outline.bounds.y,
+      width: outline.bounds.width,
+      height: outline.bounds.height,
+    });
+  };
+
+  it('gives a small letter "o" a satin column within the span rule', () => {
+    const o = outlineObject('o', 70);
+    const assessment = assessSatinCandidate(o);
+    expect(assessment).not.toBeNull();
+    expect(assessment!.widthMm).toBeGreaterThan(1);
+    expect(assessment!.widthMm).toBeLessThan(3);
+    const result = smartDigitize([o]);
+    expect(result.regions[0].settings.stitchType).toBe('satin');
+    expect(result.converted[0].autoSatin!.widthMm).toBeCloseTo(assessment!.widthMm, 5);
+  });
+
+  it('measures stroke width across a whole word with counters, but keeps large lettering on fill', () => {
+    const word = outlineObject('doggy', 100);
+    // The heuristic reads a credible stroke width from the multi-contour word…
+    const estimate = estimateInkWidth(getStitchContours(word))!;
+    const strokeMm = estimate.width / EMBROIDERY_PX_PER_MM;
+    expect(strokeMm).toBeGreaterThan(0.8);
+    expect(strokeMm).toBeLessThan(4);
+    expect(estimate.elongation).toBeGreaterThan(1.6);
+    // …but the word's bounds exceed the conservative satin span, so fill wins.
+    expect(assessSatinCandidate(word)).toBeNull();
+    expect(smartDigitize([word]).regions[0].settings.stitchType).toBe('fill');
   });
 });
 

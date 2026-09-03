@@ -122,7 +122,12 @@ async function executeAssistedDigitize(input: ExecuteInput): Promise<void> {
     const metrics = computeMetrics(currentDesign);
 
     const summary: AssistSummary = {
-      converted: result.converted.map(item => ({ name: item.name, stitchType: item.stitchType, stitches: item.stitches })),
+      converted: result.converted.map(item => ({
+        name: item.name,
+        stitchType: item.stitchType,
+        stitches: item.stitches,
+        ...(item.autoSatin ? { autoSatinWidthMm: item.autoSatin.widthMm } : {}),
+      })),
       skipped: result.skipped,
       textConverted,
       fontNotes,

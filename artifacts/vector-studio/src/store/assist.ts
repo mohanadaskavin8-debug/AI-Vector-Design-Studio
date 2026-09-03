@@ -13,7 +13,13 @@ export interface AssistTextCandidate {
 }
 
 export interface AssistSummary {
-  converted: Array<{ name: string; stitchType: string; stitches: number }>;
+  converted: Array<{
+    name: string;
+    stitchType: string;
+    stitches: number;
+    /** Estimated ink width when the narrow-shape heuristic defaulted this region to satin. */
+    autoSatinWidthMm?: number;
+  }>;
   skipped: DigitizeSkip[];
   /** Names of text layers converted to outlines during this run. */
   textConverted: string[];

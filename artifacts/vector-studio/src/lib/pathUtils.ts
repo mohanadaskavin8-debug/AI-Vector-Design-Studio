@@ -393,6 +393,91 @@ export function contoursBounds(contours: PathContour[]): { x: number; y: number;
   return { x: minX, y: minY, width: Math.max(0.1, maxX - minX), height: Math.max(0.1, maxY - minY) };
 }
 
+// ---------------------------------------------------------------------------
+// Ink-width estimation
+//
+// Estimates how wide the *inked* area of a shape is, treating multi-contour
+// paths with even-odd fill semantics (letter counters subtract area but add
+// perimeter). For stroke-like shapes — letter stems, rings, narrow bars —
+// 2·area/perimeter converges on the true stroke width; for solid blobs it
+// approaches half the diameter, which the elongation ratio disambiguates.
+// ---------------------------------------------------------------------------
+
+export interface InkWidthEstimate {
+  /** Effective stroke width of the inked area: 2·area/perimeter (same units as the contours). */
+  width: number;
+  /**
+   * Isoperimetric elongation: perimeter² / (4π·area). 1 for a solid circle,
+   * ~1.27 for a square; grows with aspect ratio and with holes, so values
+   * above ~1.6 indicate a consistently narrow, stroke-like shape.
+   */
+  elongation: number;
+  /** Net even-odd filled area (holes subtracted). */
+  area: number;
+  /** Total boundary length across every closed contour (holes included). */
+  perimeter: number;
+}
+
+const polygonArea = (points: Pt[]): number => {
+  let doubled = 0;
+  for (let current = 0, previous = points.length - 1; current < points.length; previous = current++) {
+    doubled += points[previous].x * points[current].y - points[current].x * points[previous].y;
+  }
+  return Math.abs(doubled) / 2;
+};
+
+const polygonPerimeter = (points: Pt[]): number => {
+  let length = 0;
+  for (let current = 0, previous = points.length - 1; current < points.length; previous = current++) {
+    length += dist(points[previous], points[current]);
+  }
+  return length;
+};
+
+const pointInSinglePolygon = (point: Pt, polygon: Pt[]): boolean => {
+  let inside = false;
+  for (let current = 0, previous = polygon.length - 1; current < polygon.length; previous = current++) {
+    const a = polygon[current];
+    const b = polygon[previous];
+    const crosses = (a.y > point.y) !== (b.y > point.y)
+      && point.x < ((b.x - a.x) * (point.y - a.y)) / ((b.y - a.y) || 1e-9) + a.x;
+    if (crosses) inside = !inside;
+  }
+  return inside;
+};
+
+/**
+ * Estimates the effective ink width of a set of closed contours under
+ * even-odd fill. Contours nested at odd depth (counters, ring holes) subtract
+ * area; every boundary contributes perimeter — winding order is irrelevant.
+ * Returns null when there is no closed, positive-area geometry to measure.
+ */
+export function estimateInkWidth(contours: PathContour[]): InkWidthEstimate | null {
+  const closed = contours.filter(contour => contour.closed && contour.points.length >= 3);
+  if (!closed.length) return null;
+
+  let perimeter = 0;
+  let area = 0;
+  closed.forEach((contour, index) => {
+    const contourArea = polygonArea(contour.points);
+    perimeter += polygonPerimeter(contour.points);
+    let depth = 0;
+    closed.forEach((other, otherIndex) => {
+      if (otherIndex === index) return;
+      if (pointInSinglePolygon(contour.points[0], other.points)) depth += 1;
+    });
+    area += depth % 2 === 0 ? contourArea : -contourArea;
+  });
+
+  if (area <= 1e-6 || perimeter <= 1e-6) return null;
+  return {
+    width: (2 * area) / perimeter,
+    elongation: (perimeter * perimeter) / (4 * Math.PI * area),
+    area,
+    perimeter,
+  };
+}
+
 /** Even-odd containment across a set of closed contours. */
 export function pointInContoursEvenOdd(point: { x: number; y: number }, contours: PathContour[]): boolean {
   let inside = false;
