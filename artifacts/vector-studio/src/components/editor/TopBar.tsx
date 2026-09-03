@@ -1,19 +1,17 @@
 import React, { useRef, useState } from 'react';
 import { useEditorStore, editorStore, undo, redo, setObjects } from '../../store/editor';
 import { Download, Undo2, Redo2, ZoomIn, ZoomOut, MousePointerSquareDashed, Upload, AlertTriangle, CheckCircle2, Users, Save, Scissors } from 'lucide-react';
-import { VectorObject } from '../../lib/types';
-import { generateId } from '../../lib/utils';
-import { nodesToSVGPath, pathDataBounds } from '../../lib/pathUtils';
+import { nodesToSVGPath } from '../../lib/pathUtils';
 import { useCloudProject } from '../../cloud/CloudProjectProvider';
 import { embedPrivateImages } from '../../cloud/assets';
 import { startAssistedDigitize } from '../../lib/assistedFlow';
 import { useAssistStore } from '../../store/assist';
+import { importSvgFile, isSafeImageSource } from '../../lib/svgImport';
+import { importImageFiles } from '../../lib/imageImport';
 
 const escapeXml = (value: string | undefined) => (value || '').replace(/[<>&"']/g, character => ({
   '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;',
 }[character] || character));
-
-const isSafeImageSource = (value: string) => /^data:image\/(png|jpe?g|webp|gif);base64,/i.test(value) || value.startsWith('/objects/');
 
 export default function TopBar() {
   const { zoom, history, historyIndex, objects, artboard, projectName, workspaceMode } = useEditorStore();
@@ -125,139 +123,37 @@ export default function TopBar() {
     img.src = url;
   };
 
-  const handleImportSVG = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportSVG = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    if (fileInputRef.current) fileInputRef.current.value = '';
     if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(text, 'image/svg+xml');
-      if (doc.querySelector('parsererror')) {
-        setNotice('Import failed: this file is not valid SVG.');
-        return;
-      }
-      
-      const newObjects: VectorObject[] = [];
-      let skipped = 0;
-      
-      // Basic SVG shape parser
-      doc.querySelectorAll('rect, ellipse, circle, polygon, line, path, image, text').forEach((el, index) => {
-        const tagName = el.tagName.toLowerCase();
-        const fill = el.getAttribute('fill') || '#D9D9D9';
-        const stroke = el.getAttribute('stroke') || 'none';
-        const strokeWidth = parseFloat(el.getAttribute('stroke-width') || '0');
-        const opacity = parseFloat(el.getAttribute('opacity') || '1');
-        if (el.hasAttribute('transform') || el.querySelector('animate, set, script, foreignObject')) skipped += 1;
-        
-        if (tagName === 'rect') {
-          newObjects.push({
-            id: generateId(), type: 'rect', name: `Imported Rect ${index + 1}`,
-            x: parseFloat(el.getAttribute('x') || '0'), y: parseFloat(el.getAttribute('y') || '0'),
-            width: parseFloat(el.getAttribute('width') || '100'), height: parseFloat(el.getAttribute('height') || '100'),
-            rx: parseFloat(el.getAttribute('rx') || '0'), rotation: 0, fill, stroke, strokeWidth, opacity, visible: true, locked: false
-          });
-        } else if (tagName === 'ellipse' || tagName === 'circle') {
-          const cx = parseFloat(el.getAttribute('cx') || '50');
-          const cy = parseFloat(el.getAttribute('cy') || '50');
-          const rx = parseFloat(el.getAttribute('rx') || el.getAttribute('r') || '50');
-          const ry = parseFloat(el.getAttribute('ry') || el.getAttribute('r') || '50');
-          newObjects.push({
-            id: generateId(), type: 'ellipse', name: `Imported Ellipse ${index + 1}`,
-            x: cx - rx, y: cy - ry, width: rx * 2, height: ry * 2,
-            rotation: 0, fill, stroke, strokeWidth, opacity, visible: true, locked: false
-          });
-        } else if (tagName === 'polygon') {
-          newObjects.push({
-            id: generateId(), type: 'polygon', name: `Imported Polygon ${index + 1}`,
-            x: 0, y: 0, width: 200, height: 200, rotation: 0, fill, stroke, strokeWidth, opacity, visible: true, locked: false, points: el.getAttribute('points') || undefined
-          });
-        } else if (tagName === 'line') {
-          const x1 = parseFloat(el.getAttribute('x1') || '0');
-          const y1 = parseFloat(el.getAttribute('y1') || '0');
-          const x2 = parseFloat(el.getAttribute('x2') || '100');
-          const y2 = parseFloat(el.getAttribute('y2') || '100');
-          newObjects.push({
-            id: generateId(), type: 'line', name: `Imported Line ${index + 1}`,
-            x: Math.min(x1, x2), y: Math.min(y1, y2), width: Math.abs(x2 - x1), height: Math.abs(y2 - y1),
-            rotation: 0, fill, stroke, strokeWidth, opacity, visible: true, locked: false
-          });
-        } else if (tagName === 'path') {
-           const points = el.getAttribute('d') || '';
-           newObjects.push({
-             id: generateId(), type: 'path', name: `Imported Path ${index + 1}`,
-              ...pathDataBounds(points), rotation: 0, fill, stroke, strokeWidth, opacity, visible: true, locked: false,
-              points
-           });
-        } else if (tagName === 'image') {
-           const imageSrc = el.getAttribute('href') || el.getAttribute('xlink:href') || '';
-           if (!isSafeImageSource(imageSrc)) {
-             skipped += 1;
-             return;
-           }
-           newObjects.push({
-             id: generateId(), type: 'image', name: `Imported Image ${index + 1}`,
-             x: parseFloat(el.getAttribute('x') || '0'), y: parseFloat(el.getAttribute('y') || '0'),
-             width: parseFloat(el.getAttribute('width') || '100'), height: parseFloat(el.getAttribute('height') || '100'),
-             rotation: 0, fill: 'none', stroke: 'none', strokeWidth: 0, opacity: 1, visible: true, locked: false,
-              imageSrc
-           });
-         } else if (tagName === 'text') {
-           const x = parseFloat(el.getAttribute('x') || '0');
-           const y = parseFloat(el.getAttribute('y') || '16');
-           const fontSize = parseFloat(el.getAttribute('font-size') || '16');
-           newObjects.push({
-             id: generateId(), type: 'text', name: `Imported Text ${index + 1}`,
-             x, y: y - fontSize, width: Math.max(40, (el.textContent || '').length * fontSize * 0.6), height: fontSize * 1.2,
-             rotation: 0, fill, stroke, strokeWidth, opacity, visible: true, locked: false,
-             text: el.textContent || '', fontSize, fontFamily: el.getAttribute('font-family') || 'Inter',
-             fontWeight: el.getAttribute('font-weight') || '400',
-           });
-        }
-      });
-      
+
+    try {
+      const { objects: newObjects, skipped } = await importSvgFile(file);
       if (newObjects.length > 0) {
-        setObjects([...objects, ...newObjects]);
+        setObjects([...editorStore.get().objects, ...newObjects]);
         editorStore.set({ selection: newObjects.map(object => object.id) });
         setNotice(`Imported ${newObjects.length} editable layer${newObjects.length === 1 ? '' : 's'}${skipped ? `; skipped ${skipped} unsupported or unsafe item${skipped === 1 ? '' : 's'}` : ''}.`);
       } else {
         setNotice('No supported SVG shapes were found. Groups, filters, masks, and external images are not imported.');
       }
-    };
-    reader.readAsText(file);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Import failed: this file is not valid SVG.');
+    }
   };
-  
-  const handleImportImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+
+  const handleImportImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = (event) => {
-       const url = event.target?.result as string;
-       const img = new Image();
-       img.onload = () => {
-          const maxDimension = 600;
-          const scale = Math.min(1, maxDimension / Math.max(img.width, img.height));
-          const width = img.width * scale;
-          const height = img.height * scale;
-          const object = {
-             id: generateId(), type: 'image' as const, name: file.name,
-             x: artboard.width/2 - width/2, y: artboard.height/2 - height/2,
-             width, height, rotation: 0,
-             fill: 'none', stroke: 'none', strokeWidth: 0, opacity: 1, visible: true, locked: false,
-             imageSrc: url
-          };
-          setObjects([...objects, object]);
-          editorStore.set({ selection: [object.id] });
-          setNotice(`Imported ${file.name} as an editable image layer.`);
-       };
-       img.onerror = () => setNotice('Import failed: the selected image could not be decoded.');
-       img.src = url;
-    };
-    reader.readAsDataURL(file);
     if (imageInputRef.current) imageInputRef.current.value = '';
+    if (!file) return;
+
+    const { placed, errors } = await importImageFiles([file], artboard);
+    if (placed.length > 0) {
+      setObjects([...editorStore.get().objects, ...placed]);
+      editorStore.set({ selection: placed.map(object => object.id) });
+      setNotice(`Imported ${file.name} as an editable image layer.`);
+    }
+    if (errors.length > 0) setNotice(errors[0]);
   };
 
   const getPreflightWarnings = () => {
@@ -342,8 +238,8 @@ export default function TopBar() {
 
       <div className="editor-topbar-actions flex items-center gap-2 relative">
         {notice && <div role="status" className="absolute top-10 right-0 w-80 rounded-lg border border-white/10 bg-card px-3 py-2 text-xs text-muted-foreground shadow-xl">{notice}<button onClick={() => setNotice('')} className="float-right ml-2 text-foreground">Dismiss</button></div>}
-        <input type="file" accept=".svg" ref={fileInputRef} onChange={handleImportSVG} className="hidden" />
-        <input type="file" accept=".png,.jpg,.jpeg" ref={imageInputRef} onChange={handleImportImage} className="hidden" />
+        <input type="file" accept=".svg,image/svg+xml" ref={fileInputRef} onChange={e => { void handleImportSVG(e); }} className="hidden" />
+        <input type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" ref={imageInputRef} onChange={e => { void handleImportImage(e); }} className="hidden" />
         {cloud.projectId && <><button aria-label="Save now" title="Save now (Ctrl/Cmd+S)" disabled={cloud.isReadOnly || cloud.status === 'saving' || cloud.status === 'conflict'} onClick={() => void cloud.saveNow()} className="p-2 rounded hover:bg-white/10 disabled:opacity-40"><Save size={15}/></button><button aria-label="Open collaboration" onClick={() => cloud.setCollaborationOpen(true)} className="p-2 rounded hover:bg-white/10"><Users size={16}/></button></>}
         
         {workspaceMode === 'embroidery' ? (

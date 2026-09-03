@@ -61,6 +61,20 @@ export default function Editor() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selection, workspaceMode, isReadOnly, saveNow, status]);
 
+  // A file dropped outside a drop zone would otherwise navigate the browser
+  // away from the editor. Swallow stray drops; inner drop zones handle theirs.
+  useEffect(() => {
+    const preventStray = (e: DragEvent) => {
+      if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) e.preventDefault();
+    };
+    window.addEventListener('dragover', preventStray);
+    window.addEventListener('drop', preventStray);
+    return () => {
+      window.removeEventListener('dragover', preventStray);
+      window.removeEventListener('drop', preventStray);
+    };
+  }, []);
+
   const commands = (isReadOnly ? [
     { label: 'Clear selection', shortcut: 'Esc', action: () => editorStore.set({ selection: [] }) },
   ] : [

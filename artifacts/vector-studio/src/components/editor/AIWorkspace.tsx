@@ -388,6 +388,7 @@ function TraceSection({ addAction }: { addAction: (msg: string) => void }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<TraceResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isDropTarget, setIsDropTarget] = useState(false);
   const tokenRef = useRef(0);
 
   const imageLayers = objects.filter(object => object.type === 'image' && object.imageSrc);
@@ -476,10 +477,7 @@ function TraceSection({ addAction }: { addAction: (msg: string) => void }) {
     return () => clearTimeout(timer);
   }, [loadNonce, colors, detail, smoothing, speckle, bgMode]);
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
+  const importTraceImage = async (file: File) => {
     setError(null);
     try {
       const imported = await importImageFile(file);
@@ -487,6 +485,13 @@ function TraceSection({ addAction }: { addAction: (msg: string) => void }) {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'The image could not be imported.');
     }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    await importTraceImage(file);
   };
 
   const reset = () => {
@@ -549,12 +554,26 @@ function TraceSection({ addAction }: { addAction: (msg: string) => void }) {
           <button
             type="button"
             data-testid="button-trace-upload"
-            className="w-full border-2 border-dashed border-white/20 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:bg-white/5 transition-colors"
+            className={`w-full border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center text-center transition-colors ${isDropTarget ? 'border-primary/60 bg-primary/10' : 'border-white/20 hover:bg-white/5'}`}
             onClick={() => fileInputRef.current?.click()}
+            onDragOver={e => {
+              if (Array.from(e.dataTransfer.types).includes('Files')) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'copy';
+                setIsDropTarget(true);
+              }
+            }}
+            onDragLeave={() => setIsDropTarget(false)}
+            onDrop={e => {
+              e.preventDefault();
+              setIsDropTarget(false);
+              const file = Array.from(e.dataTransfer.files ?? [])[0];
+              if (file) void importTraceImage(file);
+            }}
           >
             <ImagePlus className="text-muted-foreground mb-3" size={24} />
             <span className="text-xs font-semibold mb-1">Upload to trace</span>
-            <span className="text-[10px] text-muted-foreground">PNG, JPG, WebP up to 5 MB.</span>
+            <span className="text-[10px] text-muted-foreground">PNG, JPG, WebP up to 5 MB — or drag &amp; drop.</span>
           </button>
           <input
             type="file"

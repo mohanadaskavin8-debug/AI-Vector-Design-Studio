@@ -7,6 +7,7 @@ import Rulers from './Rulers';
 import { computeBoundingBox, smoothPathNodes } from '../../lib/pathUtils';
 import { useCloudProject } from '../../cloud/CloudProjectProvider';
 import { importImageFiles } from '../../lib/imageImport';
+import { importSvgFile, isSvgFile } from '../../lib/svgImport';
 
 type DragState =
   | { type: 'idle' }
@@ -498,12 +499,37 @@ export default function Workspace() {
     if (!files.length) return;
     e.preventDefault();
     const dropPoint = getSvgPoint(e.clientX, e.clientY);
-    const { placed, errors } = await importImageFiles(files, editorStore.get().artboard, dropPoint);
+
+    const svgFiles = files.filter(isSvgFile);
+    const imageFiles = files.filter(file => !isSvgFile(file));
+    const placed: VectorObject[] = [];
+    const errors: string[] = [];
+    let skippedTotal = 0;
+
+    for (const file of svgFiles.slice(0, 4)) {
+      try {
+        const result = await importSvgFile(file);
+        if (!result.objects.length) errors.push(`“${file.name}” has no supported SVG shapes.`);
+        placed.push(...result.objects);
+        skippedTotal += result.skipped;
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : `“${file.name}” could not be imported.`);
+      }
+    }
+    if (svgFiles.length > 4) errors.push(`Only the first 4 SVG files were imported (${svgFiles.length} dropped).`);
+
+    if (imageFiles.length) {
+      const imported = await importImageFiles(imageFiles, editorStore.get().artboard, dropPoint);
+      placed.push(...imported.placed);
+      errors.push(...imported.errors);
+    }
+
     if (placed.length) {
       const current = editorStore.get().objects;
       setObjects([...current, ...placed]);
       editorStore.set({ selection: placed.map(object => object.id), activeTool: 'select' });
     }
+    if (skippedTotal) errors.push(`Skipped ${skippedTotal} unsupported or unsafe SVG item${skippedTotal === 1 ? '' : 's'}.`);
     if (errors.length) {
       showDropNotice(errors.length > 1 ? `${errors[0]} (+${errors.length - 1} more)` : errors[0]);
     }
