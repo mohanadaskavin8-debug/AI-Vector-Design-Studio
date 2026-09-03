@@ -3,6 +3,7 @@ import { VectorObject, ShapeType, DocumentState } from '../lib/types';
 import { generateId } from '../lib/utils';
 import { objectToPathData } from '../lib/booleanOps';
 import { pathDataBounds } from '../lib/pathUtils';
+import { transformObjectBounds } from '../lib/objectGeometry';
 
 const INITIAL_ARTWORK: VectorObject[] = [
   {
@@ -158,7 +159,11 @@ export const setObjects = (objects: VectorObject[], addToHistory = true) => {
 
 export const updateObject = (id: string, partial: Partial<VectorObject>, addToHistory = true) => {
   const { objects } = editorStore.get();
-  setObjects(objects.map(obj => obj.id === id ? { ...obj, ...partial } : obj), addToHistory);
+  setObjects(objects.map(obj => {
+    if (obj.id !== id) return obj;
+    const transformed = transformObjectBounds(obj, partial);
+    return { ...transformed, ...partial };
+  }), addToHistory);
 };
 
 export const updateSelectedObjects = (partial: Partial<VectorObject>) => {
@@ -215,7 +220,7 @@ export const alignSelection = (alignment: 'left' | 'center' | 'right' | 'top' | 
     if (alignment === 'top') newY = targetVal;
     if (alignment === 'bottom') newY = targetVal - obj.height;
     if (alignment === 'middle') newY = targetVal - obj.height/2;
-    return { ...obj, x: newX, y: newY };
+    return transformObjectBounds(obj, { x: newX, y: newY });
   });
   
   setObjects(newObjs, true);
@@ -241,10 +246,7 @@ export const distributeSelection = (axis: 'x' | 'y') => {
   selectedObjs.forEach((obj, i) => {
     const objIdx = updatedObjs.findIndex(o => o.id === obj.id);
     if (objIdx > -1) {
-       updatedObjs[objIdx] = { 
-         ...updatedObjs[objIdx], 
-         [axis]: pos 
-       };
+       updatedObjs[objIdx] = transformObjectBounds(updatedObjs[objIdx], { [axis]: pos });
     }
     pos += (axis === 'x' ? obj.width : obj.height) + gap;
   });

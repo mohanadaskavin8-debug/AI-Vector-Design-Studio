@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useEditorStore, editorStore, selectObject, updateObject, setObjects, deleteSelection } from '../../store/editor';
+import { transformObjectBounds } from '../../lib/objectGeometry';
 import { ShapeRenderer } from './ShapeRenderer';
 import { generateId } from '../../lib/utils';
 import { VectorObject, PathNode } from '../../lib/types';
@@ -319,7 +320,7 @@ export default function Workspace() {
       const newObjects = objects.map(obj => {
         const startObj = dragState.startObjects.find(o => o.id === obj.id);
         if (startObj && selection.includes(obj.id)) {
-          return { ...obj, x: startObj.x + dx, y: startObj.y + dy };
+          return transformObjectBounds(startObj, { x: startObj.x + dx, y: startObj.y + dy });
         }
         return obj;
       });

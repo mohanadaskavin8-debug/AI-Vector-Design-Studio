@@ -437,6 +437,7 @@ function GroupPartsPanel() {
   if (paths.length < 2 || paths.length !== members.length) return null;
 
   const isTraced = paths.some(object => object.traceRole);
+  const selectedPart = selection.length === 1 ? paths.find(object => object.id === selection[0]) : undefined;
   const bounds = members.reduce(
     (acc, object) => ({
       minX: Math.min(acc.minX, object.x),
@@ -514,6 +515,11 @@ function GroupPartsPanel() {
       <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
         {isTraced ? 'Traced parts' : 'Group parts'} ({paths.length})
       </h3>
+      {isTraced && (
+        <p className="mb-2 text-[9px] leading-relaxed text-muted-foreground">
+          Choose one part below to move, resize, recolor, or delete it.
+        </p>
+      )}
       <div className="max-h-44 overflow-y-auto custom-scrollbar space-y-1 pr-1">
         {paths.map(part => (
           <div
@@ -545,6 +551,11 @@ function GroupPartsPanel() {
           </div>
         ))}
       </div>
+      {selectedPart && isTraced && (
+        <div className="mt-2 rounded-md border border-primary/20 bg-primary/5 px-2 py-1.5 text-[9px] text-muted-foreground">
+          Editing <span className="font-medium text-foreground">{selectedPart.name}</span>. Use the Layout and Fill controls above, drag it on the canvas, or press Delete.
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-1 mt-2">
         <button
           onClick={mergeSameColors}
@@ -570,7 +581,7 @@ function GroupPartsPanel() {
           The BG part is treated as the image background — digitizing skips it unless you choose to include it.
         </p>
       )}
-      <p className="mt-1 text-[9px] text-muted-foreground">Tip: Alt-click a part on the canvas to select just that part.</p>
+      <p className="mt-1 text-[9px] text-muted-foreground">Tip: Alt-click a part on the canvas to select it directly.</p>
     </div>
   );
 }
