@@ -203,6 +203,7 @@ export default function TopBar() {
               disabled={cloud.isReadOnly || historyIndex <= 0}
               aria-label="Undo design change"
               className="p-1.5 rounded-md hover:bg-white/10 disabled:opacity-50 disabled:hover:bg-transparent transition-colors text-muted-foreground hover:text-foreground"
+              title="Undo the last design change (Ctrl/Cmd+Z)"
             >
               <Undo2 size={16} />
             </button>
@@ -211,6 +212,7 @@ export default function TopBar() {
               disabled={cloud.isReadOnly || historyIndex >= history.length - 1}
               aria-label="Redo design change"
               className="p-1.5 rounded-md hover:bg-white/10 disabled:opacity-50 disabled:hover:bg-transparent transition-colors text-muted-foreground hover:text-foreground"
+              title="Redo the last undone change (Shift+Ctrl/Cmd+Z)"
             >
               <Redo2 size={16} />
             </button>
@@ -221,7 +223,8 @@ export default function TopBar() {
           onClick={() => editorStore.set({ zoom: Math.max(0.1, zoom - 0.2) })}
           aria-label="Zoom out"
           className="p-1.5 rounded-md hover:bg-white/10 transition-colors text-muted-foreground hover:text-foreground"
-        >
+            title="Zoom out to see more of the canvas"
+          >
           <ZoomOut size={16} />
         </button>
         <span className="text-xs w-12 text-center font-mono select-none">
@@ -231,7 +234,8 @@ export default function TopBar() {
           onClick={() => editorStore.set({ zoom: Math.min(5, zoom + 0.2) })}
           aria-label="Zoom in"
           className="p-1.5 rounded-md hover:bg-white/10 transition-colors text-muted-foreground hover:text-foreground"
-        >
+            title="Zoom in for more precise editing"
+          >
           <ZoomIn size={16} />
         </button>
       </div>
@@ -240,7 +244,7 @@ export default function TopBar() {
         {notice && <div role="status" className="absolute top-10 right-0 w-80 rounded-lg border border-white/10 bg-card px-3 py-2 text-xs text-muted-foreground shadow-xl">{notice}<button onClick={() => setNotice('')} className="float-right ml-2 text-foreground">Dismiss</button></div>}
         <input type="file" accept=".svg,image/svg+xml" ref={fileInputRef} onChange={e => { void handleImportSVG(e); }} className="hidden" />
         <input type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" ref={imageInputRef} onChange={e => { void handleImportImage(e); }} className="hidden" />
-        {cloud.projectId && <><button aria-label="Save now" title="Save now (Ctrl/Cmd+S)" disabled={cloud.isReadOnly || cloud.status === 'saving' || cloud.status === 'conflict'} onClick={() => void cloud.saveNow()} className="p-2 rounded hover:bg-white/10 disabled:opacity-40"><Save size={15}/></button><button aria-label="Open collaboration" onClick={() => cloud.setCollaborationOpen(true)} className="p-2 rounded hover:bg-white/10"><Users size={16}/></button></>}
+         {cloud.projectId && <><button aria-label="Save now" title="Save changes to the cloud now (Ctrl/Cmd+S)" disabled={cloud.isReadOnly || cloud.status === 'saving' || cloud.status === 'conflict'} onClick={() => void cloud.saveNow()} className="p-2 rounded hover:bg-white/10 disabled:opacity-40"><Save size={15}/></button><button aria-label="Open collaboration" title="See collaborators, save checkpoints, and create sharing links" onClick={() => cloud.setCollaborationOpen(true)} className="p-2 rounded hover:bg-white/10"><Users size={16}/></button></>}
         
         {workspaceMode === 'embroidery' ? (
           <div className="flex items-center px-3 py-1.5 bg-primary/20 text-primary text-xs font-medium rounded-md border border-primary/30">
@@ -307,7 +311,7 @@ export default function TopBar() {
             <div className="w-px h-4 bg-white/10 mx-1" />
 
              {!cloud.isReadOnly && <div className="editor-import group relative">
-               <button className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/10 rounded-md text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
+               <button title="Add editable SVG layers or a raster image layer; drag and drop onto the canvas also works" className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/10 rounded-md text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
                  <Upload size={14} /> Import
                </button>
                <div className="absolute top-full right-0 mt-1 w-32 bg-card border border-white/10 rounded-md shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
@@ -316,8 +320,8 @@ export default function TopBar() {
                </div>
             </div>}
 
-            <div className="group relative">
-               <button className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/10 rounded-md text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
+             <div className="editor-export group relative">
+               <button title="Download visible artwork as editable SVG or PNG; this does not include machine embroidery files" className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/10 rounded-md text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
                  <Download size={14} /> Export
                </button>
                 <div className="absolute top-full right-0 mt-1 w-56 bg-card border border-white/10 rounded-md shadow-xl p-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
@@ -326,8 +330,8 @@ export default function TopBar() {
                    </label>
                    <label className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground"><input type="checkbox" checked={transparentBackground} onChange={event => setTransparentBackground(event.target.checked)} />Transparent background</label>
                    <div className="h-px bg-white/10 my-1" />
-                   <button onClick={handleExportSVG} className="w-full text-left px-2 py-2 text-xs hover:bg-white/10 rounded text-muted-foreground hover:text-foreground">Export editable SVG</button>
-                   <button onClick={handleExportPNG} className="w-full text-left px-2 py-2 text-xs hover:bg-white/10 rounded text-muted-foreground hover:text-foreground">Export PNG</button>
+                   <button title="Downloads visible artwork as scalable vector shapes that can be reopened in vector editors" onClick={handleExportSVG} className="w-full text-left px-2 py-2 text-xs hover:bg-white/10 rounded text-muted-foreground hover:text-foreground">Export editable SVG</button>
+                   <button title="Downloads a flattened pixel image at the selected scale; it will not remain editable as vector layers" onClick={handleExportPNG} className="w-full text-left px-2 py-2 text-xs hover:bg-white/10 rounded text-muted-foreground hover:text-foreground">Export PNG</button>
                </div>
             </div>
           </>

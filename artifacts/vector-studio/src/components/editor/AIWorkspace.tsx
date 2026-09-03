@@ -30,6 +30,7 @@ export default function AIWorkspace() {
       <div className="flex p-2 gap-1 border-b border-white/5 bg-black/20">
         <button
           onClick={() => setActiveTab('generate')}
+           title="Create a new raster image from a written prompt, then review it before adding it to the canvas"
           className={`flex-1 py-1.5 text-[10px] font-medium rounded-md transition-all duration-200 ${
             activeTab === 'generate' ? 'bg-primary/20 text-primary border border-primary/20 shadow-sm' : 'text-muted-foreground hover:bg-white/5 border border-transparent'
           }`}
@@ -38,6 +39,7 @@ export default function AIWorkspace() {
         </button>
         <button
           onClick={() => setActiveTab('trace')}
+           title="Convert an uploaded or existing image layer into editable flat-color vector parts"
           className={`flex-1 py-1.5 text-[10px] font-medium rounded-md transition-all duration-200 ${
             activeTab === 'trace' ? 'bg-primary/20 text-primary border border-primary/20 shadow-sm' : 'text-muted-foreground hover:bg-white/5 border border-transparent'
           }`}
@@ -47,6 +49,7 @@ export default function AIWorkspace() {
         </button>
         <button
           onClick={() => setActiveTab('edits')}
+           title="Apply automatic cleanup and styling actions to selected artwork"
           className={`flex-1 py-1.5 text-[10px] font-medium rounded-md transition-all duration-200 ${
             activeTab === 'edits' ? 'bg-primary/20 text-primary border border-primary/20 shadow-sm' : 'text-muted-foreground hover:bg-white/5 border border-transparent'
           }`}
@@ -257,7 +260,9 @@ function GenerateSection({ addAction }: { addAction: (msg: string) => void }) {
             placeholder="Describe the image you want to generate..."
             className="w-full bg-black/40 border border-white/10 rounded-md px-2 py-2 text-xs focus:border-primary focus:outline-none min-h-[80px] resize-y"
             disabled={isGenerating}
+             aria-describedby="ai-prompt-help"
           />
+           <p id="ai-prompt-help" className="mt-1 text-[9px] leading-relaxed text-muted-foreground">Describe the subject, visual treatment, palette, and whether text should appear. You will review the image before it is added.</p>
           <div className="flex flex-wrap gap-1 mt-1.5">
             {['Flat badge, limited palette', 'Editorial texture, no text', 'Product motif, isolated'].map(suggestion => (
               <button
@@ -292,6 +297,7 @@ function GenerateSection({ addAction }: { addAction: (msg: string) => void }) {
             onClick={handleGenerate}
             disabled={!prompt.trim() || !capabilityToken || capabilityLoading}
             className="w-full py-2 bg-primary text-primary-foreground text-xs rounded-md hover:bg-primary/90 transition-colors font-medium disabled:opacity-50 disabled:hover:bg-primary"
+             title="Uses Replit credits to generate one image for review; it does not alter the canvas until you apply it"
           >
             {capabilityLoading ? 'Preparing secure access…' : 'Generate Image'}
           </button>
@@ -340,12 +346,14 @@ function GenerateSection({ addAction }: { addAction: (msg: string) => void }) {
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={applyVariation}
+                 title="Add this generated image as a selected image layer; the review copy is then removed"
                 className="flex-1 min-w-[100px] flex items-center justify-center gap-1.5 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-500 border border-emerald-500/30 text-xs rounded-md transition-colors"
               >
                 <Check size={14} /> Apply
               </button>
               <button
                 onClick={rejectSelected}
+                 title="Remove this generated result from the review list without changing the canvas"
                 className="flex-1 min-w-[80px] flex items-center justify-center gap-1.5 py-1.5 bg-white/5 hover:bg-white/10 text-muted-foreground text-xs rounded-md transition-colors"
               >
                 <X size={14} /> Reject
@@ -671,24 +679,25 @@ function TraceSection({ addAction }: { addAction: (msg: string) => void }) {
               <span className="text-[10px] font-mono">{colors}</span>
             </div>
             <input type="range" min="2" max="8" value={colors} onChange={e => setColors(Number(e.target.value))} className="w-full accent-primary" data-testid="slider-trace-colors" />
+             <p className="text-[9px] leading-relaxed text-muted-foreground">Fewer colors make simpler artwork with fewer editable parts; more colors preserve more tonal variation.</p>
 
             <div className="flex items-center justify-between pt-1">
               <label className="text-[10px] font-medium text-muted-foreground">Detail</label>
               <span className="text-[10px] font-mono">{detail}</span>
             </div>
-            <input type="range" min="1" max="10" value={detail} onChange={e => setDetail(Number(e.target.value))} className="w-full accent-primary" data-testid="slider-trace-detail" />
+            <input aria-label="Trace detail" title="Higher detail samples more pixels and preserves smaller edges, but creates more complex paths" type="range" min="1" max="10" value={detail} onChange={e => setDetail(Number(e.target.value))} className="w-full accent-primary" data-testid="slider-trace-detail" />
 
             <div className="flex items-center justify-between pt-1">
               <label className="text-[10px] font-medium text-muted-foreground">Smoothing</label>
               <span className="text-[10px] font-mono">{smoothing}</span>
             </div>
-            <input type="range" min="0" max="10" value={smoothing} onChange={e => setSmoothing(Number(e.target.value))} className="w-full accent-primary" data-testid="slider-trace-smoothing" />
+            <input aria-label="Trace smoothing" title="Higher smoothing removes jagged edges and nodes but can soften small details" type="range" min="0" max="10" value={smoothing} onChange={e => setSmoothing(Number(e.target.value))} className="w-full accent-primary" data-testid="slider-trace-smoothing" />
 
             <div className="flex items-center justify-between pt-1">
               <label className="text-[10px] font-medium text-muted-foreground">Speckle cleanup</label>
               <span className="text-[10px] font-mono">{speckle}</span>
             </div>
-            <input type="range" min="0" max="40" value={speckle} onChange={e => setSpeckle(Number(e.target.value))} className="w-full accent-primary" data-testid="slider-trace-speckle" />
+            <input aria-label="Trace speckle cleanup" title="Removes tiny isolated regions by merging them into surrounding colors" type="range" min="0" max="40" value={speckle} onChange={e => setSpeckle(Number(e.target.value))} className="w-full accent-primary" data-testid="slider-trace-speckle" />
 
             <div className="pt-1">
               <label className="text-[10px] font-medium text-muted-foreground block mb-1">Background</label>

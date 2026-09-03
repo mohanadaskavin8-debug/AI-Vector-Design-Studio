@@ -244,6 +244,7 @@ export default function EmbroideryPanel() {
       <div className="flex p-2 gap-1 border-b border-white/5 bg-black/20 shrink-0">
         <button
           onClick={() => setActiveTab('regions')}
+           title="Review stitch order, visibility, and which artwork has been digitized"
           className={`flex-1 py-1.5 text-[10px] font-medium rounded-md transition-all duration-200 ${
             activeTab === 'regions' ? 'bg-primary/20 text-primary border border-primary/20 shadow-sm' : 'text-muted-foreground hover:bg-white/5 border border-transparent'
           }`}
@@ -252,6 +253,7 @@ export default function EmbroideryPanel() {
         </button>
         <button
           onClick={() => setActiveTab('properties')}
+           title="Adjust stitch type, density, angle, underlay, pull compensation, and thread color for the selected region"
           className={`flex-1 py-1.5 text-[10px] font-medium rounded-md transition-all duration-200 ${
             activeTab === 'properties' ? 'bg-primary/20 text-primary border border-primary/20 shadow-sm' : 'text-muted-foreground hover:bg-white/5 border border-transparent'
           }`}
@@ -260,6 +262,7 @@ export default function EmbroideryPanel() {
         </button>
         <button
           onClick={() => setActiveTab('export')}
+           title="Choose a hoop, review production warnings and measurements, then download a machine file"
           className={`flex-1 py-1.5 text-[10px] font-medium rounded-md transition-all duration-200 ${
             activeTab === 'export' ? 'bg-primary/20 text-primary border border-primary/20 shadow-sm' : 'text-muted-foreground hover:bg-white/5 border border-transparent'
           }`}
@@ -415,7 +418,7 @@ export default function EmbroideryPanel() {
                              </button>
                               <button aria-label={`Move ${region.name} earlier`} disabled={i === 0} onClick={() => moveRegion(region.id, 'up')} className="p-1 opacity-50 hover:opacity-100 disabled:opacity-20 transition-opacity"><ArrowUp size={12} /></button>
                               <button aria-label={`Move ${region.name} later`} disabled={i === design.regions.length - 1} onClick={() => moveRegion(region.id, 'down')} className="p-1 opacity-50 hover:opacity-100 disabled:opacity-20 transition-opacity"><ArrowDown size={12} /></button>
-                              <button aria-label={`Delete ${region.name}`} onClick={() => deleteRegion(region.id)} className="p-1 text-destructive opacity-50 hover:opacity-100 transition-opacity"><Trash2 size={12} /></button>
+                              <button aria-label={`Delete ${region.name}`} title="Remove this region from the stitch plan; the source artwork remains on the canvas" onClick={() => { if (confirm(`Remove ${region.name} from the stitch plan? The source artwork will not be deleted.`)) deleteRegion(region.id); }} className="p-1 text-destructive opacity-50 hover:opacity-100 transition-opacity"><Trash2 size={12} /></button>
                           </div>
                        </div>
                     ))}
@@ -427,7 +430,7 @@ export default function EmbroideryPanel() {
         {activeTab === 'properties' && (
            <div className="space-y-4">
               {selectedRegionIds.length === 0 ? (
-                 <p className="text-xs text-center text-muted-foreground mt-4">Select a region to edit settings</p>
+                  <p className="text-xs text-center leading-relaxed text-muted-foreground mt-4">Choose a stitch region in the Regions tab, then return here to adjust its stitch type, density, underlay, angle, and thread.</p>
               ) : (
                  selectedRegionIds.length === 1 ? (
                     <RegionSettingsPanel 

@@ -96,7 +96,7 @@ export default function CollaborationDrawer() {
                 <div className="min-w-0"><div className="text-sm truncate">{state.displayName || 'Collaborator'}</div><div className="text-[10px] text-muted-foreground capitalize">{state.permission || 'member'} · {state.mode || 'editor'} · {state.selectionCount || 0} selected</div></div>
               </div>;
             })}
-            {!presence.isLoading && !presence.data?.length && <p className="text-sm text-muted-foreground">No active collaborators reported.</p>}
+            {!presence.isLoading && !presence.data?.length && <p className="text-sm leading-relaxed text-muted-foreground">Nobody else has been active recently. Open Share to create an expiring view or edit link.</p>}
           </div>}
           {tab === 'history' && <div className="space-y-3">
             {!cloud.isReadOnly && <form className="flex gap-2" onSubmit={async event => {
@@ -111,7 +111,7 @@ export default function CollaborationDrawer() {
               }
             }}>
               <input aria-label="Checkpoint label" maxLength={120} value={label} onChange={event => setLabel(event.target.value)} placeholder="Checkpoint label" className="min-w-0 flex-1 bg-black/30 border border-white/10 rounded px-3 text-sm"/>
-              <button className="bg-primary px-3 py-2 rounded text-xs">Save checkpoint</button>
+              <button title="Save a named version of the current cloud document so it can be restored later" className="bg-primary px-3 py-2 rounded text-xs">Save checkpoint</button>
             </form>}
             {historyError && <p role="alert" className="text-xs text-destructive">{historyError}</p>}
             {(versions.data || []).map(version => <article key={version.id} className="rounded-lg border border-white/10 p-3">
@@ -128,7 +128,7 @@ export default function CollaborationDrawer() {
               <label className="text-xs text-muted-foreground">Permission<select value={permission} onChange={e => setPermission(e.target.value as 'view'|'edit')} className="mt-1 w-full bg-black/30 border border-white/10 rounded p-2 text-foreground"><option value="view">View only</option><option value="edit">Can edit</option></select></label>
               <label className="text-xs text-muted-foreground">Expires<select value={duration} onChange={e => setDuration(Number(e.target.value))} className="mt-1 w-full bg-black/30 border border-white/10 rounded p-2 text-foreground"><option value={1}>1 day</option><option value={7}>7 days</option><option value={30}>30 days</option></select></label>
             </div>
-            <button onClick={makeShare} className="w-full bg-primary rounded p-2 text-sm"><Link2 size={14} className="inline mr-2"/>Create share link</button>
+            <button title="Creates a new expiring link with the permission and duration selected above; it does not publish the project publicly" onClick={makeShare} className="w-full bg-primary rounded p-2 text-sm"><Link2 size={14} className="inline mr-2"/>Create share link</button>
             {createdUrl && <div role="status" className="rounded border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs space-y-2">
               <p className="text-emerald-200">Link created — copy it now, it is shown only once.</p>
               <input aria-label="New share link URL" readOnly value={createdUrl} onFocus={event => event.currentTarget.select()} className="w-full bg-black/40 border border-emerald-500/30 rounded px-2 py-1.5 font-mono text-[10px] text-emerald-100"/>

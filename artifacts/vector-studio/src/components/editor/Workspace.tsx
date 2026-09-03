@@ -565,8 +565,8 @@ export default function Workspace() {
   };
 
   return (
-    <div 
-      className={`absolute inset-0 z-0 overflow-hidden ${isSpacePressed ? 'cursor-grab active:cursor-grabbing' : (activeTool === 'pen' || activeTool === 'pencil') ? 'cursor-crosshair' : activeTool !== 'select' && activeTool !== 'node' ? 'cursor-crosshair' : 'cursor-default'}`}
+    <div
+      className={`editor-canvas absolute inset-0 z-0 overflow-hidden ${isSpacePressed ? 'cursor-grab active:cursor-grabbing' : (activeTool === 'pen' || activeTool === 'pencil') ? 'cursor-crosshair' : activeTool !== 'select' && activeTool !== 'node' ? 'cursor-crosshair' : 'cursor-default'}`}
       onDragOver={handleDragOver}
       onDragLeave={() => setIsDropTarget(false)}
       onDrop={e => { void handleDrop(e); }}

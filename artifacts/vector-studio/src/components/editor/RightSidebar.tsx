@@ -145,7 +145,7 @@ function PropertiesTab({ onOpenTracePanel }: { onOpenTracePanel?: () => void }) 
         </div>
         <PrecisionPanel />
         <div className="flex items-center justify-center h-32 border border-dashed border-white/10 rounded-lg bg-black/20">
-           <p className="text-xs text-muted-foreground">Select an object to edit</p>
+            <p className="px-4 text-center text-xs leading-relaxed text-muted-foreground">Select artwork on the canvas or in Layers to edit its size, position, color, and appearance.</p>
         </div>
       </div>
     );
@@ -669,10 +669,10 @@ function LayersTab() {
              ) : (
                <button className="flex-1 min-w-0 truncate text-left" onDoubleClick={e => { e.stopPropagation(); setRenamingId(obj.id); }}>{obj.name}</button>
              )}
-            <button onClick={(e) => toggleLock(e, obj.id, obj.locked)} className="opacity-50 hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity">
+             <button aria-label={`${obj.locked ? 'Unlock' : 'Lock'} ${obj.name}`} title={obj.locked ? 'Unlock this layer so it can be edited' : 'Lock this layer to prevent accidental edits'} onClick={(e) => toggleLock(e, obj.id, obj.locked)} className="opacity-50 hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity">
               {obj.locked ? <Lock size={14} /> : <Unlock size={14} />}
             </button>
-            <button onClick={(e) => toggleVisibility(e, obj.id, obj.visible)} className="opacity-50 hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity">
+             <button aria-label={`${obj.visible ? 'Hide' : 'Show'} ${obj.name}`} title={obj.visible ? 'Hide this layer from the canvas and exports' : 'Show this layer on the canvas and in exports'} onClick={(e) => toggleVisibility(e, obj.id, obj.visible)} className="opacity-50 hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity">
               {obj.visible ? <Eye size={14} /> : <EyeOff size={14} />}
             </button>
           </div>
@@ -725,7 +725,8 @@ export default function RightSidebar() {
           <button
             key={tab.id}
             onClick={() => { setActiveTab(tab.id); editorStore.set({ workspaceMode: tab.id === "embroidery" ? "embroidery" : tab.id === "preview" ? "preview" : "design" }); }}
-            className={`flex-none px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
+            title={({ design: 'Edit the selected artwork and artboard', layers: 'Select, rename, reorder, hide, lock, duplicate, group, or delete layers', ai: 'Generate images, trace images into vectors, and apply automatic edits', embroidery: 'Convert artwork into stitches, inspect regions, and export machine files', preview: 'Place the design on products for an aesthetic preview' } as const)[tab.id]}
+            className={`${tab.id === 'ai' ? 'editor-ai-tab ' : ''}flex-none px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
               activeTab === tab.id ? 'bg-primary/20 text-primary border border-primary/20 shadow-sm' : 'text-muted-foreground hover:bg-white/5 border border-transparent'
             }`}
           >

@@ -54,6 +54,7 @@ export default function PreviewPanel() {
                   value={previewState.scene}
                   onChange={e => handleSceneChange(e.target.value as PreviewState['scene'])}
                   className="w-full bg-black/40 border border-white/10 rounded-md px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
+                   title="Changes the kind of product used for the visual mockup and resets artwork placement"
                >
                   {SCENES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                </select>
@@ -64,6 +65,7 @@ export default function PreviewPanel() {
                   value={previewState.preset}
                   onChange={e => updatePreview({ preset: e.target.value })}
                   className="w-full bg-black/40 border border-white/10 rounded-md px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
+                   title="Changes the specific product mockup without altering your design"
                >
                   {PRESETS[previewState.scene].map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
                </select>
@@ -103,6 +105,7 @@ export default function PreviewPanel() {
             <button
                onClick={() => updatePreview({ scale: 0.5, position: { x: 0.5, y: 0.5 }, rotation: 0 })}
                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-white/5 hover:bg-white/10 text-xs rounded-md transition-colors text-muted-foreground"
+               title="Return preview scale, position, and rotation to their defaults; your actual artwork is unchanged"
             >
                <RefreshCcw size={12} /> Reset Position
             </button>
@@ -144,6 +147,7 @@ export default function PreviewPanel() {
                   value={previewState.printFinish}
                   onChange={e => updatePreview({ printFinish: e.target.value as PreviewState['printFinish'] })}
                   className="w-full bg-black/40 border border-white/10 rounded-md px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
+                   title="Simulates how the design surface reflects light; it does not change exported artwork"
                >
                   <option value="matte">Matte (Standard)</option>
                   <option value="glossy">Glossy (Shiny)</option>
@@ -158,6 +162,7 @@ export default function PreviewPanel() {
                   value={previewState.blendMode}
                   onChange={e => updatePreview({ blendMode: e.target.value as PreviewState['blendMode'] })}
                   className="w-full bg-black/40 border border-white/10 rounded-md px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
+                   title="Changes how artwork colors visually mix with the product surface; it does not change exported artwork"
                >
                   <option value="normal">Normal (Opaque)</option>
                   <option value="multiply">Multiply (Ink on Fabric)</option>
