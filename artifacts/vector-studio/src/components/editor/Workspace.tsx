@@ -1,11 +1,12 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { useEditorStore, editorStore, selectObject, updateObject, setObjects } from '../../store/editor';
+import { useEditorStore, editorStore, selectObject, updateObject, setObjects, deleteSelection } from '../../store/editor';
 import { ShapeRenderer } from './ShapeRenderer';
 import { generateId } from '../../lib/utils';
 import { VectorObject, PathNode } from '../../lib/types';
 import Rulers from './Rulers';
 import { computeBoundingBox, smoothPathNodes } from '../../lib/pathUtils';
 import { useCloudProject } from '../../cloud/CloudProjectProvider';
+import { importImageFiles } from '../../lib/imageImport';
 
 type DragState =
   | { type: 'idle' }
@@ -24,11 +25,32 @@ export default function Workspace() {
   const [dragState, setDragState] = useState<DragState>({ type: 'idle' });
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [snapLines, setSnapLines] = useState<{x?: number, y?: number}>({});
+  const [isDropTarget, setIsDropTarget] = useState(false);
+  const [dropNotice, setDropNotice] = useState<string | null>(null);
+  const dropNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showDropNotice = (message: string) => {
+    setDropNotice(message);
+    if (dropNoticeTimerRef.current) clearTimeout(dropNoticeTimerRef.current);
+    dropNoticeTimerRef.current = setTimeout(() => setDropNotice(null), 5000);
+  };
+
+  useEffect(() => () => {
+    if (dropNoticeTimerRef.current) clearTimeout(dropNoticeTimerRef.current);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Space' && document.activeElement?.tagName !== 'INPUT') {
         setIsSpacePressed(true);
+      }
+      if (!isReadOnly && (e.key === 'Delete' || e.key === 'Backspace')) {
+        const tag = document.activeElement?.tagName;
+        const editable = (document.activeElement as HTMLElement | null)?.isContentEditable;
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA' && !editable && selection.length > 0) {
+          e.preventDefault();
+          deleteSelection();
+        }
       }
        if (!isReadOnly && (e.code === 'Escape' || e.code === 'Enter')) {
         if (activeTool === 'pen' && selection.length === 1) {
@@ -395,13 +417,17 @@ export default function Workspace() {
       if (obj?.locked) return;
       
       if (activeTool === 'select') {
-        const groupedIds = obj?.groupId
+        // Alt-click digs into a group and selects just the clicked part.
+        const groupedIds = obj?.groupId && !e.altKey
           ? objects.filter(item => item.groupId === obj.groupId).map(item => item.id)
           : [id];
         let dragSelection = selection;
         if (e.shiftKey) {
           groupedIds.forEach(groupedId => selectObject(groupedId, true));
           dragSelection = Array.from(new Set([...selection, ...groupedIds]));
+        } else if (e.altKey) {
+          editorStore.set({ selection: [id] });
+          dragSelection = [id];
         } else if (!selection.includes(id)) {
           editorStore.set({ selection: groupedIds });
           dragSelection = groupedIds;
@@ -456,9 +482,39 @@ export default function Workspace() {
     });
   };
 
+  const handleDragOver = (e: React.DragEvent) => {
+    if (isReadOnly) return;
+    if (Array.from(e.dataTransfer.types).includes('Files')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      setIsDropTarget(true);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    setIsDropTarget(false);
+    if (isReadOnly) return;
+    const files = Array.from(e.dataTransfer.files ?? []);
+    if (!files.length) return;
+    e.preventDefault();
+    const dropPoint = getSvgPoint(e.clientX, e.clientY);
+    const { placed, errors } = await importImageFiles(files, editorStore.get().artboard, dropPoint);
+    if (placed.length) {
+      const current = editorStore.get().objects;
+      setObjects([...current, ...placed]);
+      editorStore.set({ selection: placed.map(object => object.id), activeTool: 'select' });
+    }
+    if (errors.length) {
+      showDropNotice(errors.length > 1 ? `${errors[0]} (+${errors.length - 1} more)` : errors[0]);
+    }
+  };
+
   return (
     <div 
       className={`absolute inset-0 z-0 overflow-hidden ${isSpacePressed ? 'cursor-grab active:cursor-grabbing' : (activeTool === 'pen' || activeTool === 'pencil') ? 'cursor-crosshair' : activeTool !== 'select' && activeTool !== 'node' ? 'cursor-crosshair' : 'cursor-default'}`}
+      onDragOver={handleDragOver}
+      onDragLeave={() => setIsDropTarget(false)}
+      onDrop={e => { void handleDrop(e); }}
     >
       <Rulers onGuideStart={isReadOnly ? undefined : handleGuideStart} />
       <svg
@@ -511,6 +567,19 @@ export default function Workspace() {
           )}
           {snapLines.y !== undefined && (
             <line x1={-10000} y1={snapLines.y} x2={10000} y2={snapLines.y} stroke="#ef4444" strokeWidth={1/zoom} strokeDasharray="4 4" pointerEvents="none" />
+          )}
+
+          {/* Drop-target highlight */}
+          {isDropTarget && (
+            <rect
+              x={0} y={0}
+              width={artboard.width} height={artboard.height}
+              fill="rgba(139,92,246,0.08)"
+              stroke="#8B5CF6"
+              strokeWidth={2 / zoom}
+              strokeDasharray={`${8 / zoom} ${6 / zoom}`}
+              pointerEvents="none"
+            />
           )}
 
           {/* Selection outlines and handles */}
@@ -590,6 +659,12 @@ export default function Workspace() {
           })}
         </g>
       </svg>
+
+      {dropNotice && (
+        <div role="alert" className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 max-w-md rounded-md border border-destructive/30 bg-black/80 backdrop-blur px-3 py-2 text-[11px] text-destructive shadow-xl">
+          {dropNotice}
+        </div>
+      )}
     </div>
   );
 }

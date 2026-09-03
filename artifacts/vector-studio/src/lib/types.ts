@@ -47,6 +47,10 @@ export interface VectorObject {
   
   // Image specific
   imageSrc?: string;
+
+  // Image tracing: marks regions produced by "Trace to shapes" so digitizing
+  // can exclude backgrounds by default and quick actions can target parts.
+  traceRole?: 'region' | 'background';
 }
 
 export interface DocumentState {

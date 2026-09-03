@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useEditorStore, editorStore, updateObject, updateSelectedObjects, selectObject, setObjects, alignSelection, distributeSelection, combineSelection, breakApartSelection, offsetSelection } from '../../store/editor';
 import { convertTextObjectsToPaths, describeFontSubstitution } from '../../lib/textConvert';
-import { Box, Wand2, Scissors, Eye, EyeOff, Lock, Unlock, Copy, Trash2, Group, Ungroup, Star, AlignLeft, AlignCenter, AlignRight, AlignStartVertical, AlignCenterVertical, AlignEndVertical, Rows3, Columns3 } from 'lucide-react';
+import { Box, Wand2, Scissors, Eye, EyeOff, Lock, Unlock, Copy, Trash2, Group, Ungroup, Star, AlignLeft, AlignCenter, AlignRight, AlignStartVertical, AlignCenterVertical, AlignEndVertical, Rows3, Columns3, ScanSearch } from 'lucide-react';
 import { VectorObject } from '../../lib/types';
-import { performBooleanOp, isAxisAlignedRect } from '../../lib/booleanOps';
+import { performBooleanOp, isAxisAlignedRect, objectToPathData } from '../../lib/booleanOps';
+import { pathDataBounds } from '../../lib/pathUtils';
+import { generateId } from '../../lib/utils';
+import { requestTraceLayer } from '../../lib/traceRequest';
 import { pxToUnit, unitToPx } from '../../lib/units';
 import AIWorkspace from './AIWorkspace';
 import EmbroideryPanel from './EmbroideryPanel';
@@ -93,7 +96,7 @@ function SelectionTools() {
   );
 }
 
-function PropertiesTab() {
+function PropertiesTab({ onOpenTracePanel }: { onOpenTracePanel?: () => void }) {
   const { objects, selection, artboard, unit } = useEditorStore();
   const selectedObj = objects.find(o => o.id === selection[0]);
 
@@ -154,6 +157,7 @@ function PropertiesTab() {
         <div className="bg-primary/10 border border-primary/20 p-3 rounded-lg flex items-center justify-between">
            <span className="text-sm font-medium text-primary">{selection.length} Objects Selected</span>
         </div>
+        <GroupPartsPanel />
         <SelectionTools />
         <PrecisionPanel />
       </div>
@@ -301,6 +305,32 @@ function PropertiesTab() {
       <div className="h-px bg-white/10" />
       <SelectionTools />
 
+      {selectedObj.type === 'image' && (
+        <>
+          <div className="h-px bg-white/10" />
+          <div>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Image</h3>
+            <button
+              onClick={() => { requestTraceLayer(selectedObj.id); onOpenTracePanel?.(); }}
+              data-testid="button-trace-to-shapes"
+              className="w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded-md border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium transition-colors"
+            >
+              <ScanSearch size={13} /> Trace to shapes
+            </button>
+            <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground">
+              Turns this image into editable color shapes you can recolor, reshape, delete, and stitch. Photos are simplified to a few flat colors.
+            </p>
+          </div>
+        </>
+      )}
+
+      {selectedObj.type === 'path' && selectedObj.groupId && (
+        <>
+          <div className="h-px bg-white/10" />
+          <GroupPartsPanel />
+        </>
+      )}
+
       {selectedObj.type === 'text' && (
         <>
           <div className="h-px bg-white/10" />
@@ -388,6 +418,159 @@ function ConvertToOutlines({ object }: { object: VectorObject }) {
       )}
       <p className="text-[10px] text-muted-foreground">Turns the text into editable paths so it can be stitched. Undo restores the editable text.</p>
       {notice && <p role="status" className="text-[10px] leading-relaxed text-amber-300">{notice}</p>}
+    </div>
+  );
+}
+
+/**
+ * Quick actions for a group made of path parts (e.g. a traced image):
+ * select/delete individual parts, merge same-color parts, drop tiny ones.
+ */
+function GroupPartsPanel() {
+  const { objects, selection } = useEditorStore();
+  const selected = objects.filter(object => selection.includes(object.id));
+  const groupIds = new Set(selected.map(object => object.groupId).filter((value): value is string => Boolean(value)));
+  if (!selected.length || groupIds.size !== 1) return null;
+  const groupId = [...groupIds][0];
+  const members = objects.filter(object => object.groupId === groupId);
+  const paths = members.filter(object => object.type === 'path');
+  if (paths.length < 2 || paths.length !== members.length) return null;
+
+  const isTraced = paths.some(object => object.traceRole);
+  const bounds = members.reduce(
+    (acc, object) => ({
+      minX: Math.min(acc.minX, object.x),
+      minY: Math.min(acc.minY, object.y),
+      maxX: Math.max(acc.maxX, object.x + object.width),
+      maxY: Math.max(acc.maxY, object.y + object.height),
+    }),
+    { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity },
+  );
+  const groupArea = Math.max(1, (bounds.maxX - bounds.minX) * (bounds.maxY - bounds.minY));
+  const tinyIds = paths
+    .filter(object => object.traceRole !== 'background' && object.width * object.height < groupArea * 0.005)
+    .map(object => object.id);
+
+  const colorCounts = new Map<string, number>();
+  paths.forEach(object => {
+    const key = object.fill.toLowerCase();
+    colorCounts.set(key, (colorCounts.get(key) || 0) + 1);
+  });
+  const mergeableColors = [...colorCounts.entries()].filter(([, count]) => count > 1).map(([color]) => color);
+  const hasBackground = paths.some(object => object.traceRole === 'background');
+
+  const deletePart = (event: React.MouseEvent, id: string) => {
+    event.stopPropagation();
+    const current = editorStore.get();
+    setObjects(current.objects.filter(object => object.id !== id));
+    editorStore.set({ selection: current.selection.filter(selectedId => selectedId !== id) });
+  };
+
+  const mergeSameColors = () => {
+    let next = [...editorStore.get().objects];
+    const mergedIds: string[] = [];
+    for (const color of mergeableColors) {
+      const list = next.filter(object => object.groupId === groupId && object.type === 'path' && object.fill.toLowerCase() === color);
+      if (list.length < 2) continue;
+      const pathParts = list.map(objectToPathData);
+      if (pathParts.some(part => !part)) continue;
+      const points = pathParts.join(' ');
+      // Only keep a trace role every member shares — merging the background
+      // part with a regular part must not mark the result as background
+      // (background parts are skipped when stitching).
+      const sharedRole = list.every(object => object.traceRole === list[0].traceRole) ? list[0].traceRole : undefined;
+      const merged: VectorObject = {
+        ...list[0],
+        id: generateId(),
+        name: `Merged · ${list[0].fill}`,
+        ...pathDataBounds(points),
+        rotation: 0,
+        points,
+        nodes: undefined,
+        closed: true,
+        traceRole: sharedRole,
+      };
+      const insertAt = next.findIndex(object => object.id === list[0].id);
+      const removed = new Set(list.map(object => object.id));
+      next = next.filter(object => !removed.has(object.id));
+      next.splice(Math.min(insertAt, next.length), 0, merged);
+      mergedIds.push(merged.id);
+    }
+    if (!mergedIds.length) return;
+    setObjects(next);
+    editorStore.set({ selection: mergedIds });
+  };
+
+  const removeTinyParts = () => {
+    if (!tinyIds.length || tinyIds.length >= paths.length) return;
+    const removed = new Set(tinyIds);
+    const current = editorStore.get();
+    setObjects(current.objects.filter(object => !removed.has(object.id)));
+    editorStore.set({ selection: current.selection.filter(id => !removed.has(id)) });
+  };
+
+  return (
+    <div>
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+        {isTraced ? 'Traced parts' : 'Group parts'} ({paths.length})
+      </h3>
+      <div className="max-h-44 overflow-y-auto custom-scrollbar space-y-1 pr-1">
+        {paths.map(part => (
+          <div
+            key={part.id}
+            role="button"
+            tabIndex={0}
+            data-testid={`row-part-${part.id}`}
+            onClick={() => editorStore.set({ selection: [part.id] })}
+            onKeyDown={event => { if (event.key === 'Enter') editorStore.set({ selection: [part.id] }); }}
+            className={`w-full flex items-center gap-2 px-2 py-1 rounded-md border cursor-pointer transition-colors ${
+              selection.includes(part.id) && selection.length === 1
+                ? 'border-primary/40 bg-primary/10'
+                : 'border-white/10 bg-black/30 hover:border-primary/30'
+            }`}
+          >
+            <span className="w-3.5 h-3.5 rounded-sm border border-white/20 shrink-0" style={{ background: part.fill }} />
+            <span className="text-[10px] truncate flex-1">{part.name}</span>
+            {part.traceRole === 'background' && (
+              <span className="text-[8px] px-1 rounded bg-white/10 text-muted-foreground shrink-0" title="Skipped when stitching unless included">BG</span>
+            )}
+            <button
+              onClick={event => deletePart(event, part.id)}
+              className="p-0.5 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive shrink-0"
+              title="Delete this part"
+              data-testid={`button-delete-part-${part.id}`}
+            >
+              <Trash2 size={11} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-1 mt-2">
+        <button
+          onClick={mergeSameColors}
+          disabled={!mergeableColors.length}
+          data-testid="button-merge-same-colors"
+          className="px-2 py-1.5 bg-black/30 border border-white/10 rounded-md text-[10px] hover:border-primary/40 disabled:opacity-30"
+          title="Combine parts that share a fill color into one path each"
+        >
+          Merge same colors
+        </button>
+        <button
+          onClick={removeTinyParts}
+          disabled={!tinyIds.length}
+          data-testid="button-remove-tiny-parts"
+          className="px-2 py-1.5 bg-black/30 border border-white/10 rounded-md text-[10px] hover:border-primary/40 disabled:opacity-30"
+          title="Delete parts smaller than 0.5% of the group"
+        >
+          Remove tiny parts{tinyIds.length ? ` (${tinyIds.length})` : ''}
+        </button>
+      </div>
+      {hasBackground && (
+        <p className="mt-1.5 text-[9px] leading-relaxed text-muted-foreground">
+          The BG part is treated as the image background — digitizing skips it unless you choose to include it.
+        </p>
+      )}
+      <p className="mt-1 text-[9px] text-muted-foreground">Tip: Alt-click a part on the canvas to select just that part.</p>
     </div>
   );
 }
@@ -541,7 +724,7 @@ export default function RightSidebar() {
       </div>
       
       <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
-        {activeTab === 'design' && <PropertiesTab />}
+        {activeTab === 'design' && <PropertiesTab onOpenTracePanel={() => setActiveTab('ai')} />}
         {activeTab === 'layers' && <LayersTab />}
         {activeTab === 'ai' && <AIWorkspace />}
         {activeTab === 'embroidery' && <EmbroideryPanel />}

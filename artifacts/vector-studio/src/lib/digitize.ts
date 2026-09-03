@@ -71,6 +71,9 @@ export const isBackgroundLikeRect = (
   object: VectorObject,
   artboard: { width: number; height: number },
 ): boolean => {
+  // Traced image backgrounds are flagged at trace time — same treatment as
+  // canvas-fill rects: excluded by default, includable on request.
+  if (object.traceRole === 'background') return true;
   if (object.type !== 'rect') return false;
   const rotation = Math.abs(((object.rotation % 360) + 360) % 360);
   const axisAligned = rotation < 1 || Math.abs(rotation - 180) < 1 || Math.abs(rotation - 360) < 1;
@@ -133,7 +136,9 @@ export function runSmartDigitize(input: SmartDigitizeInput): SmartDigitizeResult
         id: object.id,
         name: object.name,
         reason: 'background',
-        detail: `Covers most of the artboard (≥${Math.round(BACKGROUND_COVERAGE_RATIO * 100)}%), so it reads as fabric, not stitches.`,
+        detail: object.traceRole === 'background'
+          ? 'Traced as the image background, so it reads as fabric, not stitches.'
+          : `Covers most of the artboard (≥${Math.round(BACKGROUND_COVERAGE_RATIO * 100)}%), so it reads as fabric, not stitches.`,
       });
       return;
     }
