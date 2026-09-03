@@ -111,7 +111,9 @@ type Point = { x: number; y: number };
 export const EMBROIDERY_EXPORTERS: ExporterCapability[] = [
   { format: 'SVG', available: true, machineReady: false, description: 'Inspectable stitch-path preview.' },
   { format: 'JSON', available: true, machineReady: false, description: 'Editable stitch-plan commands and metadata.' },
-  ...['DST', 'PES', 'JEF', 'EXP', 'VP3', 'XXX'].map(format => ({
+  { format: 'DST', available: true, machineReady: true, description: 'Tajima stitch file — 0.1 mm units with jump, trim, and color-stop records.' },
+  { format: 'PES', available: true, machineReady: true, description: 'Brother PES v1 with embedded PEC stitches and thumbnails.' },
+  ...['JEF', 'EXP', 'VP3', 'XXX'].map(format => ({
     format,
     available: false,
     machineReady: false,

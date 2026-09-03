@@ -4,6 +4,7 @@ import { useEmbroideryStore, setEmbroideryRegions, updateEmbroideryRegion, selec
 import { Scissors, AlertTriangle, Wand2, Download, Layers, CheckCircle2, Info, Eye, EyeOff, Trash2, ArrowUp, ArrowDown, RefreshCw, X, Play } from 'lucide-react';
 import { generateId } from '../../lib/utils';
 import { StitchRegion, generateStitches, computeMetrics, inspectEmbroidery, commandsBounds, getGeometryQuality, EmbroideryGenerationError, computeSourceFingerprint, isRegionStale } from '../../lib/embroidery';
+import { encodeDst, encodePes, machineExportPreflight, MachineExportFormat } from '../../lib/machineExport';
 import { useAssistStore, dismissAssistSummary, clearAssistError } from '../../store/assist';
 import { startAssistedDigitize } from '../../lib/assistedFlow';
 import { openPlayback } from '../../store/playback';
@@ -17,6 +18,10 @@ export default function EmbroideryPanel() {
 
   const metrics = useMemo(() => computeMetrics(design), [design]);
   const warnings = useMemo(() => inspectEmbroidery(design), [design]);
+  const machineWarnings = useMemo(() => ({
+    DST: machineExportPreflight(design, 'DST'),
+    PES: machineExportPreflight(design, 'PES'),
+  }), [design]);
   const sourceById = useMemo(() => new Map(objects.map(o => [o.id, o])), [objects]);
   const staleRegionIds = useMemo(
     () => new Set(design.regions.filter(r => isRegionStale(r, sourceById.get(r.sourceObjectId))).map(r => r.id)),
@@ -209,6 +214,21 @@ export default function EmbroideryPanel() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
+  const exportMachineFile = (format: MachineExportFormat) => {
+    try {
+      const bytes = format === 'DST' ? encodeDst(design, { name: 'DESIGN' }) : encodePes(design, { name: 'DESIGN' });
+      const blob = new Blob([bytes], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `stitch-design.${format.toLowerCase()}`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      setDigitizeNotice(error instanceof Error ? error.message : 'Machine export failed.');
+    }
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div className="p-3 bg-primary/10 border-b border-primary/20 shrink-0">
@@ -217,7 +237,7 @@ export default function EmbroideryPanel() {
            <h3 className="font-semibold text-xs">Embroidery Workspace</h3>
          </div>
          <p className="text-[9px] text-muted-foreground leading-tight">
-           Deterministic preparation and stitch inspection. Not for final machine manufacturing.
+           Deterministic preparation, stitch inspection, and machine-format export.
          </p>
          {storageWarning && <p role="status" className="mt-2 rounded border border-amber-500/20 bg-amber-500/10 p-2 text-[9px] leading-relaxed text-amber-300">{storageWarning}</p>}
       </div>
@@ -511,6 +531,35 @@ export default function EmbroideryPanel() {
               <div className="space-y-2 pt-2 border-t border-white/10">
                  <div className="text-[10px] font-medium text-muted-foreground mb-1.5 px-1">Machine Formats</div>
                  <div className="flex flex-col gap-1.5">
+                     {design.exporters.filter(e => e.machineReady).map(e => {
+                       const formatWarnings = machineWarnings[e.format as MachineExportFormat] ?? [];
+                       const blocked = formatWarnings.some(w => w.severity === 'error');
+                       return (
+                         <div key={e.format} className="space-y-1">
+                            <button
+                              onClick={() => exportMachineFile(e.format as MachineExportFormat)}
+                              disabled={blocked}
+                              data-testid={`button-export-${e.format.toLowerCase()}`}
+                              className="w-full flex items-center gap-2 px-3 py-2 bg-black/40 hover:bg-white/5 border border-white/5 rounded-md transition-colors text-xs text-left disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-black/40"
+                            >
+                               <Download size={14} className="text-muted-foreground shrink-0" />
+                               <div className="min-w-0 flex-1">
+                                  <div className="font-medium text-foreground flex items-center gap-1.5">
+                                     {e.format === 'DST' ? 'Tajima DST' : `Brother ${e.format}`}
+                                     <span className="text-[8px] px-1 py-px rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-400">Machine ready</span>
+                                  </div>
+                                  <div className="text-[9px] text-muted-foreground">{e.description}</div>
+                               </div>
+                            </button>
+                            {formatWarnings.map((w, i) => (
+                               <p key={i} className={`text-[9px] flex gap-1.5 items-start leading-tight px-1 ${w.severity === 'error' ? 'text-destructive' : w.severity === 'warning' ? 'text-amber-500' : 'text-blue-400/80'}`}>
+                                  <Info size={10} className="shrink-0 mt-0.5" />
+                                  <span><span className="font-medium">{w.message}</span> {w.recommendation}</span>
+                               </p>
+                            ))}
+                         </div>
+                       );
+                     })}
                      {design.exporters.filter(e => !e.available).map(e => (
                        <div key={e.format} className="flex items-center justify-between px-3 py-1.5 bg-black/20 border border-white/5 rounded-md opacity-50 select-none">
                           <span className="text-[10px] font-medium">{e.format}</span>
@@ -520,7 +569,7 @@ export default function EmbroideryPanel() {
                  </div>
                  <p className="text-[9px] text-muted-foreground flex items-start gap-1 mt-2">
                     <Info size={10} className="shrink-0 mt-0.5" />
-                    Tested machine-format exporter is not installed.
+                    Machine files use 0.1 mm units relative to the hoop center. Test the first run on scrap fabric.
                  </p>
               </div>
            </div>

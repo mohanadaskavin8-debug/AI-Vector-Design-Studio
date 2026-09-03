@@ -40,7 +40,7 @@ A desktop-first browser vector editor with a polished SVG workspace and extensib
 - AI image generation uses OpenAI through Replit AI Integrations. Results and deterministic edits remain staged until Apply; the provider route is same-origin, session-capability protected, and rate limited.
 - Raster tracing is deterministic contour tracing (palette quantization, connected regions, hole-preserving crack-edge boundaries, smoothing), not model-backed: photos are honestly flattened to a chosen number of solid colors. The DOM-free engine lives in `src/lib/imageTrace.ts`; traced parts carry `traceRole` so digitizing skips backgrounds by default.
 - Embroidery preparation is a separate local stitch-plan model generated deterministically from supported vector geometry. Metrics and preflight derive from its ordered commands, not from artwork-area guesses.
-- Embroidery generation is bounded by per-region and whole-plan command limits. Satin-style scanning is labeled approximate; SVG/JSON are inspection exports, while machine formats remain unavailable until tested exporters exist.
+- Embroidery generation is bounded by per-region and whole-plan command limits. Satin-style scanning is labeled approximate; SVG/JSON are inspection exports. DST and PES machine exports (src/lib/machineExport.ts) emit 0.1 mm units relative to the hoop center and are round-trip tested against independent binary parsers; JEF/EXP/VP3/XXX remain unavailable.
 - The editor uses a small external store so pointer-driven canvas updates do not force unrelated interface components to rerender.
 
 ## Product
