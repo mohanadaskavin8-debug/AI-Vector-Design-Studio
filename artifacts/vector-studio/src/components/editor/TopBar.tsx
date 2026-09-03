@@ -1,11 +1,13 @@
 import React, { useRef, useState } from 'react';
 import { useEditorStore, editorStore, undo, redo, setObjects } from '../../store/editor';
-import { Download, Undo2, Redo2, ZoomIn, ZoomOut, MousePointerSquareDashed, Upload, AlertTriangle, CheckCircle2, Users, Save } from 'lucide-react';
+import { Download, Undo2, Redo2, ZoomIn, ZoomOut, MousePointerSquareDashed, Upload, AlertTriangle, CheckCircle2, Users, Save, Scissors } from 'lucide-react';
 import { VectorObject } from '../../lib/types';
 import { generateId } from '../../lib/utils';
 import { nodesToSVGPath, pathDataBounds } from '../../lib/pathUtils';
 import { useCloudProject } from '../../cloud/CloudProjectProvider';
 import { embedPrivateImages } from '../../cloud/assets';
+import { startAssistedDigitize } from '../../lib/assistedFlow';
+import { useAssistStore } from '../../store/assist';
 
 const escapeXml = (value: string | undefined) => (value || '').replace(/[<>&"']/g, character => ({
   '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;',
@@ -16,6 +18,7 @@ const isSafeImageSource = (value: string) => /^data:image\/(png|jpe?g|webp|gif);
 export default function TopBar() {
   const { zoom, history, historyIndex, objects, artboard, projectName, workspaceMode } = useEditorStore();
   const cloud = useCloudProject();
+  const assistPhase = useAssistStore().phase;
   const storageWarning = useEditorStore().storageWarning;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -364,6 +367,17 @@ export default function TopBar() {
           </div>
         ) : (
           <>
+            {!cloud.isReadOnly && (
+              <button
+                onClick={() => void startAssistedDigitize()}
+                disabled={assistPhase === 'working'}
+                title="Digitize this design into an inspectable stitch plan"
+                className="editor-embroider flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-60 transition-colors shadow-[0_0_15px_rgba(139,92,246,0.25)]"
+              >
+                <Scissors size={14} /> {assistPhase === 'working' ? 'Digitizing\u2026' : 'Embroider design'}
+              </button>
+            )}
+
             <button
               onClick={() => setPreflightOpen(!preflightOpen)}
                className={`editor-preflight flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${getPreflightWarnings().length > 0 ? 'text-amber-500 hover:bg-amber-500/10' : 'text-emerald-500 hover:bg-emerald-500/10'}`}

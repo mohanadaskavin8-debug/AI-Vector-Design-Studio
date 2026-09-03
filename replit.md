@@ -10,7 +10,7 @@ A desktop-first browser vector editor with a polished SVG workspace and extensib
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
+- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only). Deployed databases are upgraded automatically at API startup by the idempotent migrations in `lib/db/src/migrate.ts` — when a schema change must reach production, add a guarded statement there in the same change.
 - Required env: `DATABASE_URL` — Postgres connection string
 
 ## Stack

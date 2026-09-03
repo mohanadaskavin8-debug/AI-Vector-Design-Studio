@@ -9,6 +9,7 @@ import RightSidebar from '../components/editor/RightSidebar';
 import { Command } from 'lucide-react';
 import { useCloudProject } from '../cloud/CloudProjectProvider';
 import CollaborationDrawer from '../components/editor/CollaborationDrawer';
+import TextConvertDialog from '../components/editor/TextConvertDialog';
 
 export default function Editor() {
   const [cmdOpen, setCmdOpen] = useState(false);
@@ -82,6 +83,7 @@ export default function Editor() {
       {status === 'read-only' && <div className="fixed left-4 bottom-4 z-50 rounded-full border border-amber-400/30 bg-amber-500/15 px-3 py-1.5 text-xs font-semibold text-amber-300">Read-only viewer</div>}
       {status === 'conflict' && <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/45 p-3"><div role="alertdialog" aria-modal="true" aria-label="Save conflict" className="w-full max-w-2xl rounded-xl border border-red-500/40 bg-card p-4 shadow-2xl"><strong className="text-red-300">Cloud save conflict</strong><p className="my-2 text-xs text-muted-foreground">{message}</p><div className="flex flex-wrap gap-2"><ConflictActions /></div></div></div>}
       <CollaborationDrawer />
+      <TextConvertDialog />
       
       {cmdOpen && (
          <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-start justify-center pt-[20vh]" onPointerDown={() => setCmdOpen(false)}>

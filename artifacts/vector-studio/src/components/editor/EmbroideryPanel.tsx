@@ -1,18 +1,26 @@
 import React, { useState, useMemo } from 'react';
 import { useEditorStore } from '../../store/editor';
 import { useEmbroideryStore, setEmbroideryRegions, updateEmbroideryRegion, selectEmbroideryRegion, setHoop, moveRegion, deleteRegion } from '../../store/embroidery';
-import { Scissors, AlertTriangle, Wand2, Download, Layers, CheckCircle2, Info, Eye, EyeOff, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
+import { Scissors, AlertTriangle, Wand2, Download, Layers, CheckCircle2, Info, Eye, EyeOff, Trash2, ArrowUp, ArrowDown, RefreshCw, X } from 'lucide-react';
 import { generateId } from '../../lib/utils';
-import { StitchRegion, generateStitches, computeMetrics, inspectEmbroidery, commandsBounds, getGeometryQuality, EmbroideryGenerationError } from '../../lib/embroidery';
+import { StitchRegion, generateStitches, computeMetrics, inspectEmbroidery, commandsBounds, getGeometryQuality, EmbroideryGenerationError, computeSourceFingerprint, isRegionStale } from '../../lib/embroidery';
+import { useAssistStore, dismissAssistSummary, clearAssistError } from '../../store/assist';
+import { startAssistedDigitize } from '../../lib/assistedFlow';
 
 export default function EmbroideryPanel() {
   const { objects, selection, artboard } = useEditorStore();
   const { design, selectedRegionIds, storageWarning } = useEmbroideryStore();
   const [activeTab, setActiveTab] = useState<'regions' | 'properties' | 'export'>('regions');
   const [digitizeNotice, setDigitizeNotice] = useState('');
+  const assist = useAssistStore();
 
   const metrics = useMemo(() => computeMetrics(design), [design]);
   const warnings = useMemo(() => inspectEmbroidery(design), [design]);
+  const sourceById = useMemo(() => new Map(objects.map(o => [o.id, o])), [objects]);
+  const staleRegionIds = useMemo(
+    () => new Set(design.regions.filter(r => isRegionStale(r, sourceById.get(r.sourceObjectId))).map(r => r.id)),
+    [design.regions, sourceById],
+  );
 
   const handleDigitize = () => {
      if (selection.length === 0) return;
@@ -70,7 +78,8 @@ export default function EmbroideryPanel() {
            commands: cmds,
            bounds: commandsBounds(cmds),
             geometryQuality: geometry.quality,
-            geometryNote: geometry.note
+            geometryNote: geometry.note,
+            sourceFingerprint: computeSourceFingerprint(obj)
         };
         
         if (existingIdx >= 0) {
@@ -118,11 +127,49 @@ export default function EmbroideryPanel() {
         updateEmbroideryRegion(id, { 
           settings: newSettings,
           commands: newCmds,
-          bounds
+          bounds,
+          // Regeneration used the current source geometry, so the region is
+          // fresh again after a settings change.
+          ...(sourceObj ? { sourceFingerprint: computeSourceFingerprint(sourceObj) } : {})
         });
       } catch (error) {
         setDigitizeNotice(error instanceof Error ? error.message : 'The stitch plan could not be updated.');
       }
+  };
+
+  const handleRefreshStale = () => {
+    const errors: string[] = [];
+    let refreshed = 0;
+    const next = design.regions.map(region => {
+      if (!staleRegionIds.has(region.id)) return region;
+      const source = sourceById.get(region.sourceObjectId);
+      if (!source) return region;
+      try {
+        const cmds = generateStitches(source, region.settings);
+        const geometry = getGeometryQuality(source);
+        refreshed += 1;
+        return {
+          ...region,
+          name: `Stitch Region (${source.name})`,
+          commands: cmds,
+          bounds: commandsBounds(cmds),
+          geometryQuality: geometry.quality,
+          geometryNote: geometry.note,
+          sourceFingerprint: computeSourceFingerprint(source),
+        };
+      } catch (error) {
+        errors.push(error instanceof Error ? `${source.name}: ${error.message}` : `${source.name}: regeneration failed.`);
+        return region;
+      }
+    });
+    try {
+      setEmbroideryRegions(next);
+      setDigitizeNotice(errors.length
+        ? `Refreshed ${refreshed} region${refreshed === 1 ? '' : 's'}. Some failed \u2014 ${errors.join(' ')}`
+        : `Refreshed ${refreshed} stale region${refreshed === 1 ? '' : 's'} from the latest artwork.`);
+    } catch (error) {
+      setDigitizeNotice(error instanceof Error ? error.message : 'The stitch plan could not be updated.');
+    }
   };
 
   const exportSVG = () => {
@@ -209,6 +256,67 @@ export default function EmbroideryPanel() {
       <div className="flex-1 overflow-y-auto custom-scrollbar p-3">
         {activeTab === 'regions' && (
            <div className="space-y-4">
+              {assist.error && (
+                <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-2.5 py-2 text-[10px] leading-relaxed text-destructive">
+                  {assist.error}
+                  <button onClick={clearAssistError} className="ml-2 underline">Dismiss</button>
+                </div>
+              )}
+              {assist.summary && (
+                <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-1.5 text-primary">
+                      <CheckCircle2 size={12} />
+                      <span className="text-[10px] font-semibold uppercase tracking-wider">Design digitized</span>
+                    </div>
+                    <button aria-label="Dismiss digitize summary" onClick={dismissAssistSummary} className="p-0.5 opacity-60 hover:opacity-100 transition-opacity"><X size={12} /></button>
+                  </div>
+                  <p className="text-[10px] text-foreground leading-snug">
+                    {assist.summary.converted.length} region{assist.summary.converted.length === 1 ? '' : 's'} {'\u00b7'} {assist.summary.totalStitches.toLocaleString()} stitches
+                    {assist.summary.textConverted.length > 0 && ` \u00b7 ${assist.summary.textConverted.length} text layer${assist.summary.textConverted.length === 1 ? '' : 's'} outlined`}
+                  </p>
+                  {assist.summary.hoop && (
+                    <p className={`text-[10px] leading-snug ${assist.summary.hoop.fits ? 'text-muted-foreground' : 'text-amber-400'}`}>
+                      {assist.summary.hoop.fits
+                        ? `Hoop ${assist.summary.hoop.name} mm auto-selected \u2014 design is ${assist.summary.hoop.planWidthMm.toFixed(0)} \u00d7 ${assist.summary.hoop.planHeightMm.toFixed(0)} mm.`
+                        : `Design is ${assist.summary.hoop.planWidthMm.toFixed(0)} \u00d7 ${assist.summary.hoop.planHeightMm.toFixed(0)} mm \u2014 larger than the biggest ${assist.summary.hoop.name} mm hoop. Scale the artwork down or split it.`}
+                    </p>
+                  )}
+                  {assist.summary.skipped.length > 0 && (
+                    <div className="space-y-1 pt-1 border-t border-white/5">
+                      <div className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">Skipped</div>
+                      {assist.summary.skipped.map(skip => (
+                        <p key={skip.id} className="text-[9px] text-muted-foreground leading-tight">
+                          <span className="text-foreground">{skip.name}</span> {'\u2014'} {skip.detail}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  {assist.summary.backgroundSkipped && !assist.summary.includeBackgroundUsed && (
+                    <button
+                      onClick={() => void startAssistedDigitize({ includeBackground: true, convertText: 'skip', scopeSelection: assist.scopeSelection })}
+                      className="w-full py-1.5 rounded-md border border-white/10 bg-black/30 hover:bg-white/5 text-[10px] transition-colors"
+                    >
+                      Include background anyway
+                    </button>
+                  )}
+                  {(assist.summary.fontNotes.length > 0 || assist.summary.failures.length > 0) && (
+                    <div className="space-y-1 pt-1 border-t border-white/5">
+                      {[...assist.summary.fontNotes, ...assist.summary.failures].map((note, i) => (
+                        <p key={i} className="text-[9px] text-amber-300/90 leading-tight flex gap-1"><Info size={9} className="shrink-0 mt-0.5" />{note}</p>
+                      ))}
+                    </div>
+                  )}
+                  {assist.summary.preflight.length > 0 && (
+                    <div className="space-y-1 pt-1 border-t border-white/5">
+                      <div className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">Top preflight findings</div>
+                      {assist.summary.preflight.map((w, i) => (
+                        <p key={i} className={`text-[9px] leading-tight ${w.severity === 'error' ? 'text-destructive' : w.severity === 'warning' ? 'text-amber-500' : 'text-blue-400'}`}>{w.message}</p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               {selection.length > 0 && (
                 <button 
                   onClick={handleDigitize}
@@ -220,11 +328,26 @@ export default function EmbroideryPanel() {
               {design.regions.length === 0 ? (
                  <div className="flex flex-col items-center justify-center p-6 text-center border border-dashed border-white/10 rounded-xl bg-black/20 mt-4">
                     <Layers className="text-muted-foreground mb-2" size={24} />
-                    <p className="text-xs text-muted-foreground">Select vector artwork in Design mode, then digitize them to create stitch regions.</p>
+                    <p className="text-xs text-muted-foreground mb-3">No stitch regions yet. Embroider the whole design in one click, or select artwork in Design mode and digitize it manually.</p>
+                    <button
+                      onClick={() => void startAssistedDigitize()}
+                      disabled={assist.phase === 'working'}
+                      className="w-full flex items-center justify-center gap-2 py-2 bg-primary text-primary-foreground text-xs rounded-md hover:bg-primary/90 disabled:opacity-60 transition-colors font-medium shadow-[0_0_15px_rgba(139,92,246,0.2)]"
+                    >
+                      <Wand2 size={14} /> {assist.phase === 'working' ? 'Digitizing\u2026' : 'Embroider design'}
+                    </button>
                  </div>
               ) : (
                  <div className="space-y-1">
                     <div className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider mb-2 px-1">Digitized Sequence</div>
+                    {staleRegionIds.size > 0 && (
+                      <button
+                        onClick={handleRefreshStale}
+                        className="w-full flex items-center justify-center gap-2 py-1.5 mb-2 rounded-md border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 text-[10px] font-medium transition-colors"
+                      >
+                        <RefreshCw size={11} /> Refresh {staleRegionIds.size} stale region{staleRegionIds.size === 1 ? '' : 's'}
+                      </button>
+                    )}
                     {design.regions.map((region, i) => (
                        <div 
                          key={region.id} 
@@ -234,7 +357,15 @@ export default function EmbroideryPanel() {
                           <div className="w-4 text-[9px] opacity-50 font-mono text-right shrink-0">{i+1}</div>
                           <div className="w-3 h-3 rounded-full border border-white/20 shrink-0" style={{ backgroundColor: region.settings.color.hex }} />
                            <div className="min-w-0 flex-1">
-                             <div className="truncate text-[11px]">{region.name}</div>
+                             <div className="text-[11px] flex items-center gap-1.5">
+                               <span className="truncate">{region.name}</span>
+                               {staleRegionIds.has(region.id) && (
+                                 <span title="The source artwork changed after this region was digitized." className="shrink-0 text-[8px] px-1 py-px rounded border border-amber-500/30 bg-amber-500/10 text-amber-400">Stale</span>
+                               )}
+                               {!sourceById.get(region.sourceObjectId) && (
+                                 <span title="The source object was removed; this region can no longer be regenerated." className="shrink-0 text-[8px] px-1 py-px rounded border border-destructive/30 bg-destructive/10 text-destructive">Source removed</span>
+                               )}
+                             </div>
                              <div className="text-[8px] text-muted-foreground">{region.commands.filter(command => command.type === 'stitch').length.toLocaleString()} stitches</div>
                            </div>
                           

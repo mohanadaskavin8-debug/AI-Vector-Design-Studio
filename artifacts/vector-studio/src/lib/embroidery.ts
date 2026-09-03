@@ -1,4 +1,5 @@
 import type { VectorObject } from './types';
+import { parsePathContours, nodesToSVGPath, contoursBounds, PathContour } from './pathUtils';
 
 export const EMBROIDERY_PX_PER_MM = 96 / 25.4;
 export const MAX_REGION_COMMANDS = 20_000;
@@ -44,6 +45,8 @@ export interface StitchRegion {
   bounds: { x: number; y: number; width: number; height: number };
   geometryQuality: 'exact' | 'approximate';
   geometryNote?: string;
+  /** Hash of the source object's geometry at digitize time; used to flag stale regions. */
+  sourceFingerprint?: string;
 }
 
 export interface HoopSettings {
@@ -276,20 +279,61 @@ const outlinePoints = (object: VectorObject): { points: Point[]; closed: boolean
     };
   }
   if (object.type === 'path') {
-    const points = object.nodes?.map(node => ({ x: node.x, y: node.y })) ?? parsePointPairs(object.points);
+    const geometry = pathWorldContours(object);
+    const first = geometry.contours[0];
     return {
-      points,
-      closed: Boolean(object.closed),
-      quality: 'approximate',
-      note: 'Path curves are sampled from anchors; control-curve extrema may differ.',
+      points: first?.points ?? [],
+      closed: first?.closed ?? Boolean(object.closed),
+      quality: geometry.quality,
+      note: geometry.note,
     };
   }
   return { points: [], closed: false, quality: 'approximate', note: 'Unsupported source geometry.' };
 };
 
+/**
+ * Flattened world-space contours for a path object (multi-contour aware).
+ * Curves are flattened and the object's rotation is applied, so letterform
+ * paths with holes carry every subpath into stitch generation.
+ */
+const pathWorldContours = (object: VectorObject): { contours: PathContour[]; quality: StitchRegion['geometryQuality']; note?: string } => {
+  const center = { x: object.x + object.width / 2, y: object.y + object.height / 2 };
+  let parsed: PathContour[] = object.points ? parsePathContours(object.points) : [];
+  if (!parsed.length && object.nodes?.length) {
+    parsed = parsePathContours(nodesToSVGPath(object.nodes, Boolean(object.closed)));
+  }
+  const contours = parsed
+    .map(contour => ({
+      points: object.rotation ? contour.points.map(point => rotate(point, center, object.rotation)) : contour.points,
+      closed: contour.closed || Boolean(object.closed),
+    }))
+    .filter(contour => contour.points.length >= 2);
+  if (!contours.length) {
+    return { contours: [], quality: 'approximate', note: 'Unsupported source geometry.' };
+  }
+  return { contours, quality: 'exact' };
+};
+
 const generateRunning = (object: VectorObject, settings: StitchRegionSettings, layer: StitchCommand['layer'] = 'top') => {
+  const stitchLengthPx = clamp(settings.stitchLength, 0.8, 8) * EMBROIDERY_PX_PER_MM;
+  if (object.type === 'path') {
+    // Multi-contour paths (e.g. letter outlines) run each contour separately,
+    // travelling between contours so counters are outlined, never crossed.
+    const geometry = pathWorldContours(object);
+    const commands: StitchCommand[] = [];
+    geometry.contours.forEach(contour => {
+      const sampled = resamplePolyline(contour.points, stitchLengthPx, contour.closed);
+      if (sampled.length < 2) return;
+      appendTravel(commands, sampled[0], layer);
+      commands.push(...sampled.slice(1).map(point => ({ ...point, type: 'stitch' as const, layer })));
+      if (commands.length > MAX_REGION_COMMANDS) {
+        throw new EmbroideryGenerationError(`This running path exceeds the ${MAX_REGION_COMMANDS.toLocaleString()} command preview limit. Increase stitch length or simplify the path.`);
+      }
+    });
+    return commands;
+  }
   const geometry = outlinePoints(object);
-  const points = resamplePolyline(geometry.points, clamp(settings.stitchLength, 0.8, 8) * EMBROIDERY_PX_PER_MM, geometry.closed);
+  const points = resamplePolyline(geometry.points, stitchLengthPx, geometry.closed);
   if (!points.length) return [];
   return [
     { ...points[0], type: 'jump' as const, layer },
@@ -297,7 +341,91 @@ const generateRunning = (object: VectorObject, settings: StitchRegionSettings, l
   ];
 };
 
+/**
+ * Even-odd scanline fill for path objects. Row lines are intersected exactly
+ * with every contour edge; sorted crossings pair into inside spans, so holes
+ * (letter counters in o/d/g) stay empty and thin stems still receive their
+ * boundary stitches. Pull compensation extends each span along the stitch
+ * direction, which is the direction fabric pull acts in.
+ */
+const generatePathFill = (object: VectorObject, settings: StitchRegionSettings, layer: StitchCommand['layer']) => {
+  const geometry = pathWorldContours(object);
+  const contours = geometry.contours.filter(contour => contour.points.length >= 3);
+  if (!contours.length) return [];
+  const bounds = contoursBounds(contours);
+  const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+  const angle = object.rotation + settings.angle;
+  const radians = angle * Math.PI / 180;
+  const direction = { x: Math.cos(radians), y: Math.sin(radians) };
+  const normal = { x: -direction.y, y: direction.x };
+  const rowSpacing = clamp(settings.density, 0.2, 2) * EMBROIDERY_PX_PER_MM;
+  const sampleStep = clamp(settings.stitchLength, 0.8, 8) * EMBROIDERY_PX_PER_MM;
+  const pullPx = clamp(settings.pullCompensation, 0, 1.5) * EMBROIDERY_PX_PER_MM;
+  const diagonal = Math.hypot(bounds.width, bounds.height) + pullPx * 2 + rowSpacing;
+
+  const edges: Array<{ ax: number; ay: number; ex: number; ey: number }> = [];
+  contours.forEach(contour => {
+    const points = contour.points;
+    for (let index = 0; index < points.length; index += 1) {
+      const a = points[index];
+      const b = points[(index + 1) % points.length];
+      edges.push({ ax: a.x, ay: a.y, ex: b.x - a.x, ey: b.y - a.y });
+    }
+  });
+  const rowCount = Math.ceil(diagonal / rowSpacing) + 1;
+  if (rowCount * edges.length > 2_500_000) {
+    throw new EmbroideryGenerationError(`This region would require ${(rowCount * edges.length).toLocaleString()} geometry samples. Increase row spacing or stitch length, or reduce the artwork size.`);
+  }
+
+  const commands: StitchCommand[] = [];
+  let reverse = false;
+  const minSegmentPx = 0.4;
+  for (let offset = -diagonal / 2; offset <= diagonal / 2; offset += rowSpacing) {
+    // Tiny jitter avoids rows passing exactly through contour vertices.
+    const originX = center.x + normal.x * (offset + 0.0037);
+    const originY = center.y + normal.y * (offset + 0.0037);
+    const crossings: number[] = [];
+    for (const edge of edges) {
+      const det = -direction.x * edge.ey + edge.ex * direction.y;
+      if (Math.abs(det) < 1e-12) continue;
+      const fx = edge.ax - originX;
+      const fy = edge.ay - originY;
+      const u = (direction.x * fy - direction.y * fx) / det;
+      if (u < 0 || u >= 1) continue;
+      crossings.push((-fx * edge.ey + edge.ex * fy) / det);
+    }
+    crossings.sort((first, second) => first - second);
+
+    const rowRuns: Point[][] = [];
+    for (let pair = 0; pair + 1 < crossings.length; pair += 2) {
+      let spanStart = crossings[pair];
+      let spanEnd = crossings[pair + 1];
+      if (spanEnd - spanStart < minSegmentPx) continue;
+      spanStart -= pullPx;
+      spanEnd += pullPx;
+      const steps = Math.max(1, Math.ceil((spanEnd - spanStart) / sampleStep));
+      const run: Point[] = [];
+      for (let step = 0; step <= steps; step += 1) {
+        const along = spanStart + ((spanEnd - spanStart) * step) / steps;
+        run.push({ x: originX + direction.x * along, y: originY + direction.y * along });
+      }
+      rowRuns.push(run);
+    }
+    const orderedRuns = reverse ? rowRuns.reverse().map(points => [...points].reverse()) : rowRuns;
+    orderedRuns.forEach(points => {
+      appendTravel(commands, points[0], layer);
+      commands.push(...points.slice(1).map(point => ({ ...point, type: 'stitch' as const, layer })));
+      if (commands.length > MAX_REGION_COMMANDS) {
+        throw new EmbroideryGenerationError(`This region exceeds the ${MAX_REGION_COMMANDS.toLocaleString()} command preview limit. Increase row spacing or reduce the artwork size.`);
+      }
+      reverse = !reverse;
+    });
+  }
+  return commands;
+};
+
 const generateFill = (object: VectorObject, settings: StitchRegionSettings, layer: StitchCommand['layer'] = 'top') => {
+  if (object.type === 'path') return generatePathFill(object, settings, layer);
   const commands: StitchCommand[] = [];
   const center = { x: object.x + object.width / 2, y: object.y + object.height / 2 };
   const angle = object.rotation + settings.angle;
@@ -382,6 +510,41 @@ export function generateStitches(object: VectorObject, settings: StitchRegionSet
   }
   return commands;
 }
+
+/**
+ * Stable hash of the geometry fields that affect stitch generation. Style
+ * changes (fill, stroke, name) do not count as divergence — thread color is a
+ * region setting the user may have overridden deliberately.
+ */
+export const computeSourceFingerprint = (object: VectorObject): string => {
+  const round = (value: number) => Math.round(value * 1000) / 1000;
+  const payload = JSON.stringify([
+    object.type,
+    round(object.x),
+    round(object.y),
+    round(object.width),
+    round(object.height),
+    round(object.rotation || 0),
+    round(object.rx ?? 0),
+    object.points ?? '',
+    object.nodes?.map(node => [
+      round(node.x),
+      round(node.y),
+      node.handleIn ? [round(node.handleIn.x), round(node.handleIn.y)] : 0,
+      node.handleOut ? [round(node.handleOut.x), round(node.handleOut.y)] : 0,
+    ]) ?? 0,
+    object.closed ?? false,
+  ]);
+  let hash = 5381;
+  for (let index = 0; index < payload.length; index += 1) {
+    hash = ((hash << 5) + hash + payload.charCodeAt(index)) >>> 0;
+  }
+  return `${hash.toString(36)}-${payload.length.toString(36)}`;
+};
+
+/** A region is stale when its source still exists but its geometry changed since digitizing. */
+export const isRegionStale = (region: StitchRegion, source: VectorObject | undefined): boolean =>
+  Boolean(source && region.sourceFingerprint && region.sourceFingerprint !== computeSourceFingerprint(source));
 
 export const commandsBounds = (commands: StitchCommand[]) => {
   const points = commands.filter(command => command.type === 'stitch' || command.type === 'jump');

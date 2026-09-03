@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useEditorStore, editorStore, updateObject, updateSelectedObjects, selectObject, setObjects, alignSelection, distributeSelection, combineSelection, breakApartSelection, offsetSelection } from '../../store/editor';
+import { convertTextObjectsToPaths, describeFontSubstitution } from '../../lib/textConvert';
 import { Box, Wand2, Scissors, Eye, EyeOff, Lock, Unlock, Copy, Trash2, Group, Ungroup, Star, AlignLeft, AlignCenter, AlignRight, AlignStartVertical, AlignCenterVertical, AlignEndVertical, Rows3, Columns3 } from 'lucide-react';
 import { VectorObject } from '../../lib/types';
 import { performBooleanOp, isAxisAlignedRect } from '../../lib/booleanOps';
@@ -342,10 +343,51 @@ function PropertiesTab() {
                 {objects.filter(object => object.type === 'path').map(path => <option key={path.id} value={path.id}>{path.name}</option>)}
               </select>
             </label>
-            <p className="mt-2 text-[11px] text-muted-foreground">Text remains editable. Outline conversion is not supported in this version.</p>
+            <ConvertToOutlines object={selectedObj} />
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function ConvertToOutlines({ object }: { object: VectorObject }) {
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState('');
+  const substitution = describeFontSubstitution(object.fontFamily, object.fontWeight);
+
+  const handleConvert = async () => {
+    setBusy(true);
+    setNotice('');
+    try {
+      const result = await convertTextObjectsToPaths(editorStore.get().objects, [object.id]);
+      const replacement = result.replacements.get(object.id);
+      if (replacement) {
+        setObjects(editorStore.get().objects.map(item => (item.id === object.id ? replacement : item)));
+      }
+      const messages = [...result.notes, ...result.failures.map(failure => failure.message)];
+      if (messages.length) setNotice(messages.join(' '));
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'The text could not be converted.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-2 space-y-1.5">
+      <button
+        onClick={() => void handleConvert()}
+        disabled={busy}
+        className="w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded-md border border-white/10 bg-black/30 hover:bg-white/5 disabled:opacity-50 text-xs transition-colors"
+      >
+        <Wand2 size={12} /> {busy ? 'Converting\u2026' : 'Convert to outlines'}
+      </button>
+      {substitution && (
+        <p className="text-[10px] text-amber-400/90">This font isn't bundled for outlines {'\u2014'} conversion uses {substitution} (open-licensed match).</p>
+      )}
+      <p className="text-[10px] text-muted-foreground">Turns the text into editable paths so it can be stitched. Undo restores the editable text.</p>
+      {notice && <p role="status" className="text-[10px] leading-relaxed text-amber-300">{notice}</p>}
     </div>
   );
 }
@@ -461,7 +503,18 @@ function LayersTab() {
 
 
 export default function RightSidebar() {
+  const workspaceMode = useEditorStore().workspaceMode;
   const [activeTab, setActiveTab] = useState<'design'|'layers'|'ai'|'embroidery'|'preview'>('design');
+
+  // Keep the tab in sync when another surface (e.g. the one-click
+  // "Embroider design" flow) switches the workspace mode.
+  useEffect(() => {
+    setActiveTab(current => {
+      if (workspaceMode === 'embroidery') return 'embroidery';
+      if (workspaceMode === 'preview') return 'preview';
+      return current === 'embroidery' || current === 'preview' ? 'design' : current;
+    });
+  }, [workspaceMode]);
 
   const tabs = [
     { id: 'design', label: 'Design' },
