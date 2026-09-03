@@ -10,8 +10,20 @@ import { generateId } from './utils';
 
 export const IMAGE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 export const MAX_IMAGE_FILE_BYTES = 5 * 1024 * 1024;
+/** Internal event used to route page-level clipboard image pastes. */
+export const IMAGE_PASTE_EVENT = 'vector-studio:paste-image';
 /** Stored bitmaps are capped at this edge length to keep documents saveable. */
 const MAX_STORED_DIMENSION = 1600;
+
+/** Gets a bitmap file from either clipboard files or bitmap clipboard items. */
+export function getClipboardImageFile(data: DataTransfer | null): File | null {
+  const file = Array.from(data?.files ?? []).find(item => item.type.startsWith('image/'));
+  if (file) return file;
+  const item = Array.from(data?.items ?? []).find(
+    clipboardItem => clipboardItem.kind === 'file' && clipboardItem.type.startsWith('image/'),
+  );
+  return item?.getAsFile() ?? null;
+}
 
 /** Returns a user-facing problem with the file, or null when it is importable. */
 export function validateImageFile(file: File): string | null {

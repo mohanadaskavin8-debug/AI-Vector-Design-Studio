@@ -13,7 +13,7 @@ import {
   type TracePlacement,
   type TraceBackgroundMode,
 } from '../../lib/imageTrace';
-import { importImageFile, imageLayerName, loadImageElement } from '../../lib/imageImport';
+import { IMAGE_PASTE_EVENT, importImageFile, imageLayerName, loadImageElement } from '../../lib/imageImport';
 import { consumeTraceRequest, peekTraceRequest } from '../../lib/traceRequest';
 import { resolvePrivateObjectUrl } from '../../cloud/assets';
 
@@ -486,6 +486,18 @@ function TraceSection({ addAction }: { addAction: (msg: string) => void }) {
       setError(err instanceof Error ? err.message : 'The image could not be imported.');
     }
   };
+
+  useEffect(() => {
+    const handlePasteImage = (event: Event) => {
+      const pasteEvent = event as CustomEvent<File>;
+      const file = pasteEvent.detail;
+      if (!file || source) return;
+      pasteEvent.preventDefault();
+      void importTraceImage(file);
+    };
+    window.addEventListener(IMAGE_PASTE_EVENT, handlePasteImage);
+    return () => window.removeEventListener(IMAGE_PASTE_EVENT, handlePasteImage);
+  }, [source]);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];

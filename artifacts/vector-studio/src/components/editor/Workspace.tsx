@@ -6,7 +6,7 @@ import { VectorObject, PathNode } from '../../lib/types';
 import Rulers from './Rulers';
 import { computeBoundingBox, smoothPathNodes } from '../../lib/pathUtils';
 import { useCloudProject } from '../../cloud/CloudProjectProvider';
-import { importImageFiles } from '../../lib/imageImport';
+import { IMAGE_PASTE_EVENT, importImageFiles } from '../../lib/imageImport';
 import { importSvgFile, isSvgFile } from '../../lib/svgImport';
 
 type DragState =
@@ -39,6 +39,34 @@ export default function Workspace() {
   useEffect(() => () => {
     if (dropNoticeTimerRef.current) clearTimeout(dropNoticeTimerRef.current);
   }, []);
+
+  const importPastedImage = async (file: File) => {
+    const imported = await importImageFiles([file], editorStore.get().artboard);
+    if (imported.placed.length) {
+      const current = editorStore.get().objects;
+      setObjects([...current, ...imported.placed]);
+      editorStore.set({ selection: imported.placed.map(object => object.id), activeTool: 'select' });
+    }
+    if (imported.errors.length) showDropNotice(imported.errors[0]);
+  };
+
+  useEffect(() => {
+    const handlePasteImage = (event: Event) => {
+      const pasteEvent = event as CustomEvent<File>;
+      const file = pasteEvent.detail;
+      if (!file || isReadOnly) return;
+
+      // Let the visible Trace upload zone consume the event first. Deferring
+      // lets all paste listeners run before the canvas decides to import it.
+      queueMicrotask(() => {
+        if (pasteEvent.defaultPrevented) return;
+        pasteEvent.preventDefault();
+        void importPastedImage(file);
+      });
+    };
+    window.addEventListener(IMAGE_PASTE_EVENT, handlePasteImage);
+    return () => window.removeEventListener(IMAGE_PASTE_EVENT, handlePasteImage);
+  }, [isReadOnly]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

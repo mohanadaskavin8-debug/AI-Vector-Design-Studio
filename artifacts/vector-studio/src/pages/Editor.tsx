@@ -10,6 +10,7 @@ import { Command } from 'lucide-react';
 import { useCloudProject } from '../cloud/CloudProjectProvider';
 import CollaborationDrawer from '../components/editor/CollaborationDrawer';
 import TextConvertDialog from '../components/editor/TextConvertDialog';
+import { getClipboardImageFile, IMAGE_PASTE_EVENT } from '../lib/imageImport';
 
 export default function Editor() {
   const [cmdOpen, setCmdOpen] = useState(false);
@@ -17,6 +18,20 @@ export default function Editor() {
   const { isReadOnly, saveNow, status, message } = useCloudProject();
 
   useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (isReadOnly || status === 'conflict' || workspaceMode === 'embroidery' || workspaceMode === 'preview') return;
+      const activeElement = document.activeElement as HTMLElement | null;
+      const target = e.target as HTMLElement | null;
+      const isEditable = [activeElement, target].some(element =>
+        element?.tagName === 'INPUT' || element?.tagName === 'TEXTAREA' || element?.isContentEditable,
+      );
+      if (isEditable) return;
+      const file = getClipboardImageFile(e.clipboardData);
+      if (!file) return;
+      e.preventDefault();
+      window.dispatchEvent(new CustomEvent<File>(IMAGE_PASTE_EVENT, { detail: file, cancelable: true }));
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
@@ -58,7 +73,11 @@ export default function Editor() {
     };
     
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('paste', handlePaste);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('paste', handlePaste);
+    };
   }, [selection, workspaceMode, isReadOnly, saveNow, status]);
 
   // A file dropped outside a drop zone would otherwise navigate the browser
