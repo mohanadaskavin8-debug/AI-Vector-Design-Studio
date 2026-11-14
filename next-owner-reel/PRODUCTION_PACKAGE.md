@@ -48,7 +48,7 @@ None of the reference characters, names, sets or branding are reused.
 - **Locked descriptor:** `ROSA: 45-year-old woman, stylized 3D animated character, olive skin, dark hair in a low bun, reading glasses on a cord, navy work polo with "Anderson Plumbing" patch, clipboard in hand.`
 - **Voice:** warm, teasing, familiar with the boss.
 
-### PRIYA SHAH, CPA (cameo, the accountant)
+### PRIYA SHAH (cameo, NextOwner verification reviewer: the "person" who checks every listing)
 - **Locked descriptor:** `PRIYA: 38-year-old woman, stylized 3D animated character, South Asian, sleek black bob, tortoiseshell glasses, charcoal blazer over a cream blouse, focused calm expression.`
 - **No dialogue.**
 
@@ -66,12 +66,28 @@ Two technicians in navy "Anderson Plumbing" polos, one in his 20s and one in his
 | **ENV-SHOP-EXT** | Anderson Plumbing & Heating, exterior | Brick storefront on a small-town Ontario main street. Painted sign "ANDERSON PLUMBING & HEATING — EST. 1995". Two white service vans with the navy logo. A maple tree, autumn leaves, sidewalk planters. |
 | **ENV-SHOP-INT** | Shop floor | Busy front counter, pegboard walls of copper fittings, shelves of boxed parts, a parts-catalogue rack, a coffee pot, a bell over the door, warm fluorescent plus window light. |
 | **ENV-OFFICE** | Anderson's back office | Wood-panel office: an old desk with paper stacks, a desktop monitor, framed photos, a fishing calendar, a mug "WORLD'S OKAYEST PLUMBER", a window onto the shop floor. |
-| **ENV-CPA** | CPA office | Modern bright office, glass walls, a dual-monitor desk, a plant, neat document trays, cool daylight. |
+| **ENV-CPA** | Reviewer's office | Modern bright office, glass walls, a dual-monitor desk, a plant, neat document trays, cool daylight. |
 
 **Global look (STYLE prefix, paste at the start of every prompt):**
 `STYLE: high-end stylized 3D animated feature film look, Pixar/Disney-quality character rendering, subsurface skin scattering, expressive large eyes, detailed hair and fabric, physically based lighting, cinematic shallow depth of field, soft film grain, 24fps, vertical 9:16 composition with subject in the central safe area, no text, no watermark, no subtitles.`
 
 **Negative prompt (all shots):** `text, letters, captions, watermark, logo artifacts, extra fingers, deformed hands, distorted face, character inconsistency, different hairstyle, different clothing, photorealistic human, low poly, flicker, morphing, jitter`
+
+---
+
+## 2b. Brand system (from the supplied NextOwner assets in `brand/`)
+
+| Item | Spec |
+|---|---|
+| Name / wordmark | **NextOwner** (one word, capital N and O) |
+| Domain | **nextownr.ca** |
+| Mark | Folded white ribbon "N" with soft grey shading on the folds (`brand/logo-n.jpg`). Use the original vector for the end card. |
+| Colours | Black `#000000` background · white `#FFFFFF` primary type · grey `#8A8A8A` secondary type. No accent colour. |
+| Type | Wide, tight neo-grotesk (as on the slides). Big one-word statements ending in a full stop ("What." "Why." "When."). Use the brand's font file. |
+| Voice | Short, plain, confident sentences. "No listing goes live until…", "Every number shows its source.", "Own what's real." |
+| Status | **Coming soon.** The end card says so. |
+
+**Brand slides in the film:** the "Why." line powers Scene 2 (Jason's listing on a typical site shows "Figures provided by seller", i.e. *whatever the seller typed*). The "What." line is Scene 5. Product UI screens (UI-3 to UI-7) use the black/white/grey system so they match the slides. Captions stay white with a soft shadow, and the punch-caption font is swapped for the brand grotesk.
 
 ---
 
@@ -327,7 +343,7 @@ Timecodes are cumulative. Each **Prompt** = `STYLE prefix` + the shot prompt bel
 #### 4C · 00:50.0–00:51.0 · 1.0 s
 - **Camera:** Hero low angle up at Jason's face over the laptop. The light shifts to a clean brand-colour glow.
 - **Action/expression:** His eyes light up. A slow, intrigued smile.
-- **Action caption:** `*OPENS NEXTOWNER*` *(use the real URL format if desired, e.g. `*OPENS NEXTOWNER.COM*`; confirm the domain)*
+- **Action caption:** `*OPENS NEXTOWNR.CA*`
 - **SFX:** soft whoosh + brand sonic "shimmer"
 - **Transition:** push into the screen → UI
 - **Prompt:** `Low-angle hero close-up looking up at JASON over the top of his laptop screen, a clean bright glow washing over his face, eyes lighting up, slow intrigued smile. Background softly dark with string lights.`
@@ -353,36 +369,36 @@ Timecodes are cumulative. Each **Prompt** = `STYLE prefix` + the shot prompt bel
 
 ### SCENE 5 — THE TRUST FACTOR (00:57.0–01:07.5) · *Music: builds with pulsing synths + strings, satisfying "click-into-place" percussion*
 
-> **Accuracy note:** this scene shows the review on **this listing**, as a status the listing displays. Wording such as "This listing's financials have been reviewed" is used, never "All listings verified." **Before release, confirm with Next Owner which of these steps exist on the platform (AI document analysis, CPA review), and adjust the labels to match the real feature names.** If CPA review is an optional add-on, show it as such (see the disclaimer in 5D).
+> **Accuracy note (from the brand slides):** on NextOwner, **no listing goes live until its numbers are matched to the seller's tax returns and bank statements and checked by a person.** So this scene shows the process every listing goes through, not an optional add-on. The payoff idea is **"Every number shows its source."** The slides say "a person", not "a CPA", so the reviewer is not labelled CPA. If the reviewers really are CPAs, change the labels back.
 
 #### 5A · 00:57.0–00:59.5 · 2.5 s
 - **Camera:** UI full screen (UI-5), slow parallax depth
-- **On screen:** listing page. A section titled "Financial Review" opens. Document icons drop into place with a light 3D tilt: `2023 Financial Statements` · `2024 Financial Statements` · `Tax Returns` · `Bank Statements`. Each shows an "Uploaded by seller" label.
+- **On screen:** listing page. A section titled "Financial Review" opens. Document icons drop into place with a light 3D tilt: `2023 Tax Return` · `2024 Tax Return` · `Bank Statements (12 months)`. Each shows an "Uploaded by seller" label.
 - **SFX:** paper-flutter whooshes, soft "thup" as each lands
 - **Transition:** a scanning beam sweeps across → 5B
 
 #### 5B · 00:59.5–01:02.0 · 2.5 s
 - **Camera:** UI macro, zooming along the data rows
-- **On screen:** AI analysis. Two columns (`Listed revenue` vs `Supporting documents`) with values aligning: `$1,412,000` ↔ `$1,412,000`. A subtle line connects them and turns green. Progress text: "Comparing reported figures with supporting documents…"
+- **On screen:** AI analysis. Two columns (`Listed revenue` vs `Source: 2024 Tax Return`, then `Deposits` vs `Source: Bank Statements`) with values aligning: `$1,412,000` ↔ `$1,412,000`. A subtle line connects them and turns green. Progress text: "Matching every number to its source…"
 - **SFX:** data ticking, a soft chime when the values align
-- **Transition:** a "Sent for accountant review" badge flies off-screen → cut to the CPA
+- **Transition:** a "Sent for human review" badge flies off-screen → cut to the reviewer
 
 #### 5C · 01:02.0–01:04.0 · 2.0 s
-- **Characters:** Priya Shah, CPA
+- **Characters:** Priya Shah, NextOwner reviewer
 - **Environment:** ENV-CPA
 - **Camera:** OTS from behind Priya onto her dual monitors, then a quick cut to a close-up of her nodding and clicking "Approve"
 - **Action/expression:** She scrolls through the statements, tilts her glasses, gives a small satisfied nod, and clicks.
 - **SFX:** mouse clicks, office ambience, a crisp approval "ding"
 - **Transition:** the approval tick morphs into the checklist on Jason's screen
-- **Prompt:** `Over-the-shoulder shot from behind PRIYA, a CPA in a charcoal blazer with a sleek black bob, reviewing financial statement documents on dual monitors in a bright modern glass office (screens glowing white for compositing). Then close-up: she adjusts her tortoiseshell glasses, gives a small satisfied nod and clicks the mouse decisively. Cool daylight.`
+- **Prompt:** `Over-the-shoulder shot from behind PRIYA, a financial reviewer in a charcoal blazer with a sleek black bob, reviewing financial statement documents on dual monitors in a bright modern glass office (screens glowing white for compositing). Then close-up: she adjusts her tortoiseshell glasses, gives a small satisfied nod and clicks the mouse decisively. Cool daylight.`
 
 #### 5D · 01:04.0–01:05.5 · 1.5 s
 - **Camera:** UI full screen (UI-6). Checklist items tick in one after another (0.3 s each):
-  - ✓ Financial documentation reviewed
-  - ✓ CPA verification completed
-  - ✓ Business performance analyzed
-  - ✓ Acquisition opportunity available
-- **Small footer text (legible, 28 px):** `Review status shown for this listing. Verification availability varies by listing.`
+  - ✓ Revenue matched to tax returns
+  - ✓ Cash flow matched to bank statements
+  - ✓ Checked by a person
+  - ✓ Verified · Live on NextOwner
+- **Small footer text (legible, 28 px):** `Every number shows its source.` (tap any figure → it shows the document it came from)
 - **SFX:** four ascending "tick" chimes, a musical run
 - **Transition:** reflection of the checklist in Jason's eyes → cut
 
@@ -404,7 +420,7 @@ Timecodes are cumulative. Each **Prompt** = `STYLE prefix` + the shot prompt bel
 - **Characters:** Anderson
 - **Environment:** ENV-OFFICE, next day
 - **Camera:** Insert on a phone on the desk lighting up (UI-7), then a tilt up to Anderson picking it up
-- **On screen (notification):** `Next Owner · A qualified buyer is interested in Anderson Plumbing & Heating`
+- **On screen (notification):** `NextOwner · A qualified buyer is interested in Anderson Plumbing & Heating`
 - **SFX:** notification chime (the same brand sound as earlier → an audio link between the two stories)
 - **Prompt:** `Insert of a smartphone lighting up on a cluttered wooden office desk next to a "WORLD'S OKAYEST PLUMBER" mug, screen glowing for compositing. MR. ANDERSON's weathered hand picks it up, tilt up to his face as he puts on his glasses to read.`
 
@@ -490,11 +506,13 @@ Timecodes are cumulative. Each **Prompt** = `STYLE prefix` + the shot prompt bel
 - **Prompt:** `Medium shot of JASON standing on the sidewalk outside the brick plumbing shop at sunrise, keys in hand, looking up at the sign with a proud contented smile, then a slow cinematic crane pull-back rising high to reveal the storefront, the leafy main street and the small town glowing in morning light, a vintage pickup truck driving away in the corner of frame.`
 
 #### 7E · END CARD · 01:29.0–01:32.0 *(optional 3 s; trim 7D to 2 s for an 88–90 s cut)*
-- **Visual:** background = the last frame of 7D, blurred and darkened 40%. The **NEXT OWNER** logo (supplied vector) builds on with a soft key-turn motion: a key glyph rotates and "unlocks" the wordmark.
+- **Visual:** background = the last frame of 7D, blurred and darkened 40%. The frame cuts to **pure black** (brand background). The folded-ribbon **N** mark (`brand/logo-n.jpg`) draws on as a white ribbon that folds itself into the N, with a soft grey gradient on the folds. Then the `NextOwner` wordmark slides in to its right, as on the "When." slide.
 - **Text:**
-  - `NEXT OWNER` (logo)
-  - `The next generation of business ownership starts here.`
-- **SFX:** key-turn click on the logo reveal, final sustained chord, silence
+  - Logo lockup: **N mark + `NextOwner`**
+  - `The next generation of business ownership starts here.` (white)
+  - `Own what's real.` (grey #8A8A8A)
+  - `Coming soon · nextownr.ca` (white, small)
+- **SFX:** soft paper-fold swish as the ribbon folds, final sustained chord, silence
 - **No AI generation:** build in After Effects with the brand's real logo files.
 
 > **Final runtime:** 88.0 s with the end card trimmed (7D = 2 s), or 91 s at full length. Both fit the Reel brief. If 88 s is needed exactly, trim 1A to 1.5 s and 3B to 1.5 s.
@@ -540,11 +558,11 @@ Dialogue −12 to −8 dBFS peaks, music ducked 8–10 dB under dialogue, SFX su
 | UI-3 | Next Owner AI search | Placeholder: "Describe the business you want to own…" · Query: "Find me an established plumbing business in Ontario, under $1 million, generating at least $200,000 in annual profit." |
 | UI-4 | Results | "Searching listings…" → chips "Plumbing", "Ontario", "Under $1M", "$200K+ profit" → card "Anderson Plumbing & Heating · Hamilton, ON · Est. 1995 · Asking $890,000 · Annual profit $240,000" · button "View listing" |
 | UI-5 | Financial Review | "Financial Review" · "2023 Financial Statements" · "2024 Financial Statements" · "Tax Returns" · "Bank Statements" · "Uploaded by seller" |
-| UI-5b | AI comparison | "Comparing reported figures with supporting documents…" · "Listed revenue $1,412,000" · "Supporting documents $1,412,000" · "Sent for accountant review" |
-| UI-6 | Checklist | "Financial documentation reviewed" · "CPA verification completed" · "Business performance analyzed" · "Acquisition opportunity available" · footer "Review status shown for this listing. Verification availability varies by listing." |
-| UI-7 | Notification + messages | "Next Owner" · "A qualified buyer is interested in Anderson Plumbing & Heating" · Jason side: "Request a meeting" → "Meeting confirmed · Thursday 10:00 AM" |
+| UI-5b | AI comparison | "Matching every number to its source…" · "Listed revenue $1,412,000" · "Supporting documents $1,412,000" · "Sent for accountant review" |
+| UI-6 | Checklist | "Financial documentation reviewed" · "Revenue matched to tax returns" · "Cash flow matched to bank statements" · "Checked by a person" · "Verified · Live on NextOwner" · footer "Every number shows its source." |
+| UI-7 | Notification + messages | "NextOwner" · "A qualified buyer is interested in Anderson Plumbing & Heating" · Jason side: "Request a meeting" → "Meeting confirmed · Thursday 10:00 AM" |
 
-Use Next Owner's real brand colours and typeface. If the real platform UI exists, base the screens on it (stylized) so the film doesn't promise features the product lacks.
+Follow the brand system in §2b: black screens, white type, grey for secondary text, the wide grotesk. If the real platform UI exists, base the screens on it (stylized) so the film doesn't promise features the product lacks.
 
 ---
 
